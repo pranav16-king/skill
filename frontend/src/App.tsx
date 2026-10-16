@@ -23,6 +23,10 @@ import {
 import { generatePlainTextReport } from './engine/noticeGenerator';
 import { executeAudit } from './services/api';
 
+function getTodayDateString(): string {
+  return new Date().toISOString().split('T')[0];
+}
+
 export const App: React.FC = () => {
   // Navigation & Layout State
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
@@ -33,7 +37,9 @@ export const App: React.FC = () => {
   const [mode, setMode] = useState<InputMode>('html');
   const [rawInput, setRawInput] = useState<string>(SAMPLE_MESSY_FORM_HTML);
   const [purpose, setPurpose] = useState<string>(SAMPLE_MESSY_PURPOSE);
-  const [result, setResult] = useState<AuditResult | null>(null);
+  const [result, setResult] = useState<AuditResult | null>(() =>
+    auditForm(SAMPLE_MESSY_FORM_HTML, SAMPLE_MESSY_PURPOSE, 'html')
+  );
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [isOutOfDate, setIsOutOfDate] = useState(false);
 
@@ -46,12 +52,6 @@ export const App: React.FC = () => {
   const [purposeError, setPurposeError] = useState<string | undefined>();
   const [copyToast, setCopyToast] = useState(false);
   const [toastMessage, setToastMessage] = useState<string>('');
-
-  // Initial audit run on mount
-  useEffect(() => {
-    const initial = auditForm(SAMPLE_MESSY_FORM_HTML, SAMPLE_MESSY_PURPOSE, 'html');
-    setResult(initial);
-  }, []);
 
   // Scroll spy to update active section in sidebar
   useEffect(() => {
@@ -182,7 +182,7 @@ export const App: React.FC = () => {
     if (!result) return;
     const reportText = generatePlainTextReport(result, language);
     const purposeSlug = result.purpose.toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 24) || 'form';
-    const dateStr = new Date().toISOString().split('T')[0];
+    const dateStr = getTodayDateString();
     const filename = `dpdp-audit-${purposeSlug}-${dateStr}.txt`;
 
     const blob = new Blob([reportText], { type: 'text/plain;charset=utf-8' });
