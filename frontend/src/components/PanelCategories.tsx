@@ -7,8 +7,7 @@ import {
   CreditCard,
   HeartPulse,
   Baby,
-  MinusCircle,
-  ShieldAlert
+  MinusCircle
 } from 'lucide-react';
 
 interface PanelCategoriesProps {
@@ -20,76 +19,69 @@ interface PanelCategoriesProps {
 interface CategoryCardDef {
   key: FieldCategory;
   title: string;
-  desc: string;
   icon: React.ComponentType<{ className?: string }>;
-  sensitive: boolean;
   color: string;
   bg: string;
+  borderColor: string;
 }
 
+// Order strictly per ui.md: Identity, Contact, Location, Financial, Health, Children's data, Non-personal
 const CATEGORY_DEFS: CategoryCardDef[] = [
   {
     key: 'identity',
     title: 'Identity',
-    desc: 'Name, DOB, personal identifiers',
     icon: User,
-    sensitive: false,
-    color: '#4B2E91',
-    bg: '#EFE9FB'
+    color: '#1F4FE0',
+    bg: '#E8F0FE',
+    borderColor: '#BCD0F8'
   },
   {
     key: 'contact',
     title: 'Contact',
-    desc: 'Email address, phone numbers',
     icon: Phone,
-    sensitive: false,
-    color: '#0B5F7A',
-    bg: '#E0F2F8'
+    color: '#0F7A4F',
+    bg: '#E3F4EB',
+    borderColor: '#B7E2CA'
   },
   {
     key: 'location',
     title: 'Location',
-    desc: 'Physical address, PIN codes',
     icon: MapPin,
-    sensitive: false,
-    color: '#3F6212',
-    bg: '#EAF3D9'
+    color: '#9A6200',
+    bg: '#FFF4DB',
+    borderColor: '#F8E0B0'
   },
   {
     key: 'financial',
     title: 'Financial',
-    desc: 'Bank accounts, income, cards',
     icon: CreditCard,
-    sensitive: true,
-    color: '#7A3B00',
-    bg: '#FBEBD3'
+    color: '#5B3FE0',
+    bg: '#EEE9FD',
+    borderColor: '#D4C7F9'
   },
   {
     key: 'health',
     title: 'Health',
-    desc: 'Medical details, dietary, disability',
     icon: HeartPulse,
-    sensitive: true,
-    color: '#9D174D',
-    bg: '#FCE7F0'
+    color: '#C0264F',
+    bg: '#FDE9EE',
+    borderColor: '#F8BCCD'
   },
   {
     key: 'children',
     title: "Children's data",
-    desc: 'Minors, students under 18',
     icon: Baby,
-    sensitive: true,
-    color: '#9A3412',
-    bg: '#FDE8D8'
+    color: '#B3261E',
+    bg: '#FDECEC',
+    borderColor: '#F5C2C2'
   },
   {
-    key: 'not_personal',
+    key: 'non_personal',
     title: 'Non-personal',
-    desc: 'CSRF tokens, security values',
     icon: MinusCircle,
-    sensitive: false,
-    color: '#5A6780',
-    bg: '#EAEEF4'
+    color: '#0F7A4F',
+    bg: '#E7F6EE',
+    borderColor: '#B7E2CA'
   }
 ];
 
@@ -101,35 +93,40 @@ export const PanelCategories: React.FC<PanelCategoriesProps> = ({
   return (
     <div
       id="panel-categories"
-      className="bg-white rounded-xl border border-[var(--line)] p-5 flex flex-col gap-4 shadow-xs"
+      className="bg-white rounded-[14px] border border-[var(--border)] p-5 flex flex-col gap-4 shadow-xs"
       style={{ backgroundColor: 'var(--surface)' }}
     >
-      {/* Panel Header */}
-      <div className="flex items-center justify-between pb-2 border-b border-[var(--line)]">
-        <div>
-          <h2 className="text-sm font-semibold text-[var(--ink)] uppercase tracking-wider flex items-center gap-1.5">
-            <span className="w-2 h-2 rounded-full bg-[var(--primary)]" />
-            4. Data categories
-          </h2>
-          <p className="text-xs text-[var(--ink-3)] mt-0.5">
-            Classified per statutory DPDP personal data domains. Click to filter.
-          </p>
+      {/* Title Row with step badge 4 */}
+      <div className="flex items-center justify-between pb-1">
+        <div className="flex items-center gap-2.5">
+          <div className="w-7 h-7 rounded-full bg-[var(--blue-600)] text-white text-sm font-bold flex items-center justify-center shrink-0">
+            4
+          </div>
+          <div>
+            <h2 className="text-lg font-bold text-[var(--text)]">Data categories</h2>
+            <p className="text-xs text-[var(--text-3)] mt-0.5">
+              Click any category card to filter fields in the table
+            </p>
+          </div>
         </div>
+
         {selectedCategory && (
           <button
             onClick={() => onSelectCategory(null)}
-            className="text-xs text-[var(--primary)] hover:underline font-medium cursor-pointer"
+            className="text-xs text-[var(--blue-600)] hover:underline font-semibold cursor-pointer"
           >
-            Clear filter
+            Clear category filter
           </button>
         )}
       </div>
 
-      {/* 7 Category Cards Grid */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7 gap-2.5">
+      {/* Grid of category cards: 3 per row on desktop, 2 on tablet, 1 on mobile, 96px tall */}
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3.5">
         {CATEGORY_DEFS.map((cat) => {
           const Icon = cat.icon;
           const count = result?.categoryCounts[cat.key] || 0;
+          const labels = result?.categoryFieldLabels[cat.key] || [];
+          const labelsText = labels.length > 0 ? labels.join(', ') : 'None detected';
           const isSelected = selectedCategory === cat.key;
 
           return (
@@ -137,50 +134,44 @@ export const PanelCategories: React.FC<PanelCategoriesProps> = ({
               key={cat.key}
               type="button"
               onClick={() => onSelectCategory(isSelected ? null : cat.key)}
-              className={`p-3 rounded-xl border text-left transition-all cursor-pointer flex flex-col justify-between ${
+              title={labels.length > 0 ? `${cat.title} fields: ${labelsText}` : undefined}
+              className={`h-24 p-3.5 rounded-xl border text-left flex items-center gap-3.5 transition-all cursor-pointer ${
                 isSelected
-                  ? 'ring-2 ring-[var(--primary)] border-[var(--primary)] shadow-sm'
-                  : 'border-[var(--line)] hover:border-[var(--line-strong)] hover:shadow-xs'
+                  ? 'ring-2 ring-[var(--blue-600)] border-[var(--blue-600)] shadow-xs'
+                  : 'hover:border-[var(--border-strong)]'
               }`}
               style={{
-                backgroundColor: isSelected ? 'var(--primary-tint)' : 'var(--surface)'
+                backgroundColor: count > 0 ? cat.bg : 'var(--surface-alt)',
+                borderColor: count > 0 ? cat.borderColor : 'var(--border)'
               }}
             >
-              <div>
-                <div className="flex items-center justify-between mb-2">
-                  <div
-                    className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0"
-                    style={{ backgroundColor: cat.bg, color: cat.color }}
-                  >
-                    <Icon className="w-4 h-4" />
-                  </div>
-                  {cat.sensitive && (
-                    <span
-                      title="Sensitive personal data under DPDP standards"
-                      className="inline-flex items-center gap-0.5 text-[9px] font-semibold px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-800"
-                    >
-                      <ShieldAlert className="w-2.5 h-2.5" />
-                      Risk
-                    </span>
-                  )}
-                </div>
-
-                <span className="text-xs font-semibold text-[var(--ink)] block truncate">
-                  {cat.title}
-                </span>
-                <span className="text-[10px] text-[var(--ink-3)] block line-clamp-1 mt-0.5">
-                  {cat.desc}
-                </span>
+              {/* Icon in 40px rounded square */}
+              <div
+                className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 shadow-2xs"
+                style={{
+                  backgroundColor: 'white',
+                  color: cat.color
+                }}
+              >
+                <Icon className="w-5 h-5" />
               </div>
 
-              <div className="mt-3 pt-2 border-t border-[var(--line)] flex items-center justify-between text-xs">
-                <span className="text-[11px] text-[var(--ink-3)]">Found:</span>
-                <span
-                  className="font-bold tabular-nums text-sm"
-                  style={{ color: count > 0 ? cat.color : 'var(--ink-3)' }}
-                >
-                  {count}
-                </span>
+              {/* Text content: Category name (14/700), "N fields" (13/500), muted list */}
+              <div className="truncate flex-1">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-bold text-[var(--text)] truncate">
+                    {cat.title}
+                  </span>
+                  <span
+                    className="text-[13px] font-semibold tabular-nums ml-2"
+                    style={{ color: count > 0 ? cat.color : 'var(--text-3)' }}
+                  >
+                    {count} {count === 1 ? 'field' : 'fields'}
+                  </span>
+                </div>
+                <p className="text-xs text-[var(--text-3)] truncate mt-1">
+                  {labelsText}
+                </p>
               </div>
             </button>
           );

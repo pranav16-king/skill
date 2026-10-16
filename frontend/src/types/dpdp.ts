@@ -9,7 +9,8 @@ export type FieldCategory =
   | 'demographic'
   | 'credentials'
   | 'technical'
-  | 'not_personal';
+  | 'not_personal'
+  | 'non_personal';
 
 export type FieldVerdict = 'needed' | 'excess' | 'review' | 'not-personal';
 
@@ -23,7 +24,8 @@ export interface AuditedField {
   categoryLabel: string;
   isPersonalData: boolean;
   sensitive: boolean;
-  verdict: FieldVerdict;
+  verdict?: FieldVerdict;
+  needed?: boolean;
   reason: string;
   matchedBy: string[];
 }
@@ -31,6 +33,12 @@ export interface AuditedField {
 export type InputMode = 'html' | 'list';
 
 export type NoticeLanguage = 'en' | 'hi' | 'mr';
+
+export interface ScoreItem {
+  iconType: 'tick' | 'cross' | 'warning';
+  delta: number;
+  description: string;
+}
 
 export interface ScoreDeduction {
   delta: number;
@@ -44,15 +52,20 @@ export interface AuditResult {
   totalFields: number;
   personalDataCount: number;
   nonPersonalCount: number;
+  personalPercent: number;
+  nonPersonalPercent: number;
   necessaryCount: number;
   unnecessaryCount: number;
-  reviewCount: number;
+  reviewCount?: number;
   score: number;
-  scoreBand: 'Strong' | 'Fair' | 'Weak' | 'Poor';
+  scoreBand: 'Good' | 'Fair' | 'Needs improvement' | 'Poor' | 'Strong' | 'Weak';
   scoreColor: string;
   scoreStatusSentence: string;
-  scoreDeductions: ScoreDeduction[];
-  topImprovements: string[];
+  scoreItems?: ScoreItem[];
+  scoreDeductions?: ScoreDeduction[];
+  topImprovements?: string[];
+  hasConsentCheckbox: boolean;
   hasChildrenData: boolean;
-  categoryCounts: Record<FieldCategory, number>;
+  categoryCounts: Record<string, number>;
+  categoryFieldLabels: Record<string, string[]>;
 }

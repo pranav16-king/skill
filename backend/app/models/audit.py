@@ -81,15 +81,14 @@ class DraftNotice(BaseModel):
 
 
 class AuditRequest(BaseModel):
-    form_input: str = Field(
-        ...,
-        min_length=1,
+    form_input: Optional[str] = Field(
+        None,
         description="Form HTML snippet or comma/newline-separated list of field names",
         examples=['<form><input name="email" type="email"><input name="aadhaar"></form>', "email, mob_no, dob"]
     )
+    input: Optional[str] = Field(None, description="Alias for form_input")
     purpose: str = Field(
         ...,
-        min_length=1,
         description="Stated purpose of the form (e.g. 'newsletter signup', 'contact us')",
         examples=["newsletter signup", "online checkout", "job application"]
     )
@@ -97,6 +96,9 @@ class AuditRequest(BaseModel):
         None,
         description="Optional input mode: 'html' or 'field_list'. Auto-detected if omitted."
     )
+
+    def get_effective_input(self) -> str:
+        return (self.form_input or self.input or "").strip()
 
 
 class AuditResponse(BaseModel):

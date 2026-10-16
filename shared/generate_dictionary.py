@@ -181,6 +181,18 @@ DICTIONARY_DATA = {
             "reason": "IP address is a technical networking parameter and is guarded against misclassification as a physical geographic address."
         },
         {
+            "tokens": ["pin_kramank", "pin_code", "pincode", "postal_pin", "postal_pincode", "zip_code", "zipcode"],
+            "override_category": "location",
+            "sensitive": False,
+            "reason": "Postal Index Number (PIN Code) is a geographic location parameter, not an authentication credential."
+        },
+        {
+            "tokens": ["security_pin", "atm_pin", "upi_pin", "mpin", "secret_pin", "auth_pin", "login_pin"],
+            "override_category": "credentials",
+            "sensitive": True,
+            "reason": "Security PIN is an authentication secret."
+        },
+        {
             "tokens": ["domain_name", "domainname", "host_name", "hostname", "website_name", "site_name"],
             "override_category": "not_personal",
             "sensitive": False,
@@ -362,7 +374,7 @@ DICTIONARY_DATA = {
         },
         "credentials": {
             "tokens": [
-                "password", "pwd", "pass", "passwd", "pin", "security_pin", "otp", "one_time_password",
+                "password", "pwd", "pass", "passwd", "security_pin", "mpin", "atm_pin", "auth_pin", "otp", "one_time_password",
                 "secret", "security_question", "secret_answer", "security_code", "auth_token", "passcode"
             ],
             "hinglish": [

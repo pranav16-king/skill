@@ -11,6 +11,7 @@ from app.routes import (
     health_router,
     history_router,
     purposes_router,
+    translate_router,
 )
 
 # Setup logging
@@ -64,6 +65,7 @@ app.include_router(history_router)
 app.include_router(purposes_router)
 app.include_router(health_router)
 app.include_router(export_router)
+app.include_router(translate_router)
 
 
 @app.get("/", tags=["Root"])

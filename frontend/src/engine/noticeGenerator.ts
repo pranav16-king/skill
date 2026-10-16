@@ -12,127 +12,160 @@ export interface NoticeContent {
   retentionText: string;
   grievanceTitle: string;
   grievanceText: string;
-  childrenNotice?: string;
-  excludedNote: string;
   draftDisclaimer: string;
+  excludedNote: string;
+  childrenNotice?: string;
+  paragraph1: {
+    prefix: string;
+    collectedData: string;
+    mid: string;
+    purposePhrase: string;
+    suffix: string;
+    excessData?: string;
+  };
+  paragraph2: string;
+  footerNote: string;
+  disclaimer: string;
+}
+
+// Purpose phrase mapping for natural grammar
+function getPurposePhrase(purpose: string, lang: NoticeLanguage): string {
+  const p = purpose.toLowerCase();
+  if (p.includes('newsletter') || p.includes('subscribe')) {
+    if (lang === 'hi') return 'आपको हमारे उत्पादों, आयोजनों और ऑफ़र के अपडेट के साथ न्यूज़लेटर भेजने';
+    if (lang === 'mr') return 'आमची उत्पादने, कार्यक्रम आणि ऑफर्सच्या अपडेटसह न्यूजलेटर पाठवण्या';
+    return 'send you our newsletter with updates about our products, events and offers';
+  }
+  if (p.includes('contact') || p.includes('inquiry') || p.includes('support')) {
+    if (lang === 'hi') return 'आपकी पूछताछ और संपर्क अनुरोध का जवाब देने';
+    if (lang === 'mr') return 'आपल्या चौकशी आणि संपर्क विनंतीस उत्तर देण्या';
+    return 'respond to your inquiries and support requests';
+  }
+  if (p.includes('job') || p.includes('career') || p.includes('application')) {
+    if (lang === 'hi') return 'रोजगार के अवसरों के लिए आपकी उम्मीदवारी का मूल्यांकन करने';
+    if (lang === 'mr') return 'रोजगाराच्या संधींसाठी आपल्या उमेदवारीचे मूल्यांकन करण्या';
+    return 'evaluate your candidacy for employment opportunities';
+  }
+  if (p.includes('checkout') || p.includes('order') || p.includes('purchase')) {
+    if (lang === 'hi') return 'आपके ऑर्डर को संसाधित करने और उत्पादों की डिलीवरी करने';
+    if (lang === 'mr') return 'आपल्या ऑर्डरवर प्रक्रिया करण्यासाठी आणि उत्पादने वितरित करण्या';
+    return 'process your order and deliver products to your address';
+  }
+
+  // Fallback
+  if (lang === 'hi') return `"${purpose}" के उद्देश्य को पूरा करने`;
+  if (lang === 'mr') return `"${purpose}" या उद्देशाची पूर्तता करण्या`;
+  return `fulfill the stated purpose of ${purpose}`;
 }
 
 export function generateConsentNotice(result: AuditResult, lang: NoticeLanguage): NoticeContent {
-  const neededFields = result.fields.filter((f) => f.verdict === 'needed');
-  const hasChildren = result.hasChildrenData;
+  const neededFields = result.fields.filter((f) => (f.verdict === 'needed' || f.needed) && f.isPersonalData);
+  const excessFields = result.fields.filter((f) => (f.verdict === 'excess' || !f.needed) && f.isPersonalData);
 
-  // Plain names mapping
-  const fieldLabel = (name: string, type: string) => {
-    const n = name.toLowerCase();
-    if (n.includes('mail')) return 'Email address';
-    if (n.includes('mob') || n.includes('phone') || type === 'tel') return 'Mobile telephone number';
-    if (n.includes('name') || n.includes('nm')) return 'Full name';
-    if (n.includes('addr')) return 'Street address';
-    if (n.includes('pin') || n.includes('zip')) return 'Postal PIN code';
-    if (n.includes('dob') || n.includes('birth')) return 'Date of birth';
-    if (n.includes('msg') || n.includes('message')) return 'Message inquiry content';
-    if (n.includes('rating')) return 'Rating score';
-    return name;
-  };
+  const collectedList = neededFields.map((f) => f.label || f.name);
+  const excessList = excessFields.map((f) => f.label || f.name);
 
-  const englishItems = neededFields.length > 0
-    ? neededFields.map((f) => fieldLabel(f.name, f.type))
-    : ['Email address (contact identifier)'];
+  const collectedText = collectedList.length > 0 ? collectedList.join(', ') : 'no personal data';
+  const excessText = excessList.length > 0 ? excessList.join(', ') : '';
+
+  const purposePhrase = getPurposePhrase(result.purpose, lang);
 
   if (lang === 'hi') {
-    const hindiFieldLabel = (name: string) => {
-      const n = name.toLowerCase();
-      if (n.includes('mail')) return 'ईमेल पता (Email address)';
-      if (n.includes('mob') || n.includes('phone')) return 'मोबाइल फोन नंबर (Mobile number)';
-      if (n.includes('name') || n.includes('nm')) return 'पूरा नाम (Full name)';
-      if (n.includes('addr')) return 'पत्राचार का पता (Address)';
-      if (n.includes('pin') || n.includes('zip')) return 'पिन कोड (PIN code)';
-      if (n.includes('dob') || n.includes('birth')) return 'जन्म तिथि (Date of birth)';
-      if (n.includes('msg') || n.includes('message')) return 'संदेश / पूछताछ (Message inquiry)';
-      if (n.includes('rating')) return 'प्रतिक्रिया रेटिंग (Rating)';
-      return name;
-    };
-
-    const hiItems = neededFields.length > 0
-      ? neededFields.map((f) => hindiFieldLabel(f.name))
-      : ['ईमेल पता'];
-
     return {
-      headline: 'डिजिटल व्यक्तिगत डेटा संरक्षण (DPDP) सहमति सूचना का प्रारूप',
-      collectTitle: '१. हम क्या एकत्र करते हैं',
-      collectItems: hiItems,
-      purposeTitle: '२. हम इसे क्यों एकत्र करते हैं',
-      purposeText: `हम आपकी यह व्यक्तिगत जानकारी केवल "${result.purpose}" के उद्देश्य को पूरा करने के लिए एकत्र करते हैं। इसका उपयोग किसी अन्य असंबंधित कार्य के लिए नहीं किया जाएगा।`,
-      withdrawTitle: '३. अपनी सहमति कैसे वापस लें',
-      withdrawText: 'आप किसी भी समय बिना किसी पूर्व शर्त के अपनी सहमति वापस ले सकते हैं। सहमति वापस लेने से पूर्व में की गई वैध प्रक्रिया पर कोई प्रतिकूल प्रभाव नहीं पड़ेगा। सहमति वापस लेने के लिए कृपया हमें [your contact email] पर ईमेल करें या संदेशों में दिए गए सदस्यता समाप्ति (Unsubscribe) लिंक का उपयोग करें।',
-      retentionTitle: '४. डेटा प्रतिधारण अवधि',
-      retentionText: 'हम आपकी व्यक्तिगत जानकारी को केवल [retention period] तक अथवा इस उद्देश्य के पूरा होने तक ही सुरक्षित रखते हैं, जिसके पश्चात इसे सुरक्षित रूप से हटा दिया जाता है।',
-      grievanceTitle: '५. शिकायत निवारण अधिकारी',
-      grievanceText: 'यदि आपको अपने डेटा प्रसंस्करण से संबंधित कोई शिकायत या प्रश्न है, तो आप हमारे शिकायत निवारण अधिकारी से [grievance officer email] पर संपर्क कर सकते हैं।',
-      childrenNotice: hasChildren
-        ? 'सूचना: चूंकि इस फॉर्म में 18 वर्ष से कम आयु के बच्चों का डेटा शामिल हो सकता है, डिजिटल व्यक्तिगत डेटा संरक्षण अधिनियम के अनुसार माता-पिता या कानूनी अभिभावक की स्पष्ट सत्यापन योग्य सहमति अनिवार्य रूप से ली जाती है।'
+      headline: 'सहमति सूचना का मसौदा (धारा 6, DPDP अधिनियम 2023)',
+      collectTitle: '1. व्यक्तिगत डेटा जो हम एकत्र करते हैं',
+      collectItems: collectedList.length > 0 ? collectedList : ['कोई आवश्यक व्यक्तिगत डेटा नहीं'],
+      purposeTitle: '2. डेटा एकत्र करने का उद्देश्य',
+      purposeText: `यह डेटा केवल ${purposePhrase} के लिए एकत्र किया जाता है।`,
+      withdrawTitle: '3. सहमति कैसे वापस लें (अधिकार)',
+      withdrawText: 'आप किसी भी समय [support@example.com] पर ईमेल भेजकर अपनी सहमति वापस ले सकते हैं। सहमति वापस लेने के बाद हम आपका डेटा हटा देंगे।',
+      retentionTitle: '4. डेटा भंडारण अवधि',
+      retentionText: 'डेटा केवल तब तक संग्रहीत किया जाएगा जब तक निर्दिष्ट उद्देश्य पूरा करने के लिए आवश्यक हो (लगभग [12 महीने])।',
+      grievanceTitle: '5. शिकायत निवारण अधिकारी',
+      grievanceText: 'शिकायतों या प्रश्नों के लिए हमारे शिकायत अधिकारी [grievance@example.com] से संपर्क करें।',
+      draftDisclaimer: 'मसौदा सूचना केवल तैयारी में सहायता हेतु है। यह कानूनी सलाह नहीं है।',
+      excludedNote: excessList.length > 0 ? `अनावश्यक फ़ील्ड्स (${excessText}) को हटाकर सहमति सूचना को संक्षिप्त रखा गया है।` : 'सभी आवश्यक फ़ील्ड्स शामिल हैं।',
+      paragraph1: {
+        prefix: 'हम आपका ',
+        collectedData: collectedText,
+        mid: ' ',
+        purposePhrase: purposePhrase,
+        suffix: excessText ? `। इस उद्देश्य के लिए हम आपका ${excessText} एकत्र नहीं करते।` : '।'
+      },
+      paragraph2:
+        'आप किसी भी समय हमारे ईमेल में “अनसब्सक्राइब” लिंक पर क्लिक करके या [support@example.com] पर संपर्क करके अपनी सहमति वापस ले सकते हैं।',
+      footerNote:
+        'यह मार्गदर्शन के लिए एक मसौदा सूचना है, कानूनी सलाह नहीं। कृपया इसे अपने संगठन के अनुसार जाँचें और बदलें।',
+      childrenNotice: result.hasChildrenData
+        ? 'सूचना: चूंकि इस फॉर्म में 18 वर्ष से कम आयु के बच्चों का डेटा शामिल हो सकता है, धारा 9 के तहत माता-पिता की सत्यापन योग्य सहमति अनिवार्य है।'
         : undefined,
-      excludedNote: 'अतिरिक्त और अनावश्यक फ़ील्ड्स को इस सहमति सूचना से बाहर रखा गया है। उन्हें अपने फॉर्म से हटा दें या उपयोग से पहले वैध कारण दर्ज करें।',
-      draftDisclaimer: 'प्रारूप सूचना केवल मार्गदर्शन हेतु है। यह कानूनी सलाह नहीं है। कृपया प्रकाशन से पूर्व किसी योग्य कानूनी विशेषज्ञ से समीक्षा करवाएं।'
+      disclaimer: 'मसौदा सूचना केवल मार्गदर्शन हेतु है। यह औपचारिक कानूनी सलाह नहीं है।'
     };
   }
 
   if (lang === 'mr') {
-    const marathiFieldLabel = (name: string) => {
-      const n = name.toLowerCase();
-      if (n.includes('mail')) return 'ईमेल पत्ता (Email address)';
-      if (n.includes('mob') || n.includes('phone')) return 'मोबाईल नंबर (Mobile number)';
-      if (n.includes('name') || n.includes('nm')) return 'पूर्ण नाव (Full name)';
-      if (n.includes('addr')) return 'पत्ता (Address)';
-      if (n.includes('pin') || n.includes('zip')) return 'पिन कोड (PIN code)';
-      if (n.includes('dob') || n.includes('birth')) return 'जन्मतारीख (Date of birth)';
-      if (n.includes('msg') || n.includes('message')) return 'संदेश / चौकशी मजकूर (Message inquiry)';
-      if (n.includes('rating')) return 'अभिप्राय रेटिंग (Rating)';
-      return name;
-    };
-
-    const mrItems = neededFields.length > 0
-      ? neededFields.map((f) => marathiFieldLabel(f.name))
-      : ['ईमेल पत्ता'];
-
     return {
-      headline: 'डिजिटल वैयक्तिक डेटा संरक्षण (DPDP) संमती सूचनेचा मसुदा',
-      collectTitle: '१. आम्ही काय गोळा करतो',
-      collectItems: mrItems,
-      purposeTitle: '२. आम्ही ही माहिती का गोळा करतो',
-      purposeText: `आम्ही ही वैयक्तिक माहिती केवळ "${result.purpose}" या उद्देशाची पूर्तता करण्यासाठी गोळा करतो. याचा वापर इतर कोणत्याही असंबंधित कारणासाठी केला जाणार नाही.`,
-      withdrawTitle: '३. संमती कशी मागे घ्यावी',
-      withdrawText: 'तुम्ही तुमची संमती कोणत्याही वेळी मागे घेऊ शकता. संमती मागे घेतल्याने पूर्वी केलेल्या कायदेशीर प्रक्रियेवर कोणताही परिणाम होणार नाही. संमती मागे घेण्यासाठी कृपया आम्हाला [your contact email] वर ईमेल करा किंवा आमच्या संदेशांमधील अनसब्सक्राइब लिंकचा वापर करा.',
-      retentionTitle: '४. डेटा साठवणूक कालावधी',
-      retentionText: 'आम्ही तुमची माहिती केवळ [retention period] कालावधीसाठी किंवा नमूद हेतू पूर्ण होईपर्यंतच साठवून ठेवतो, त्यानंतर ती नष्ट केली जाते.',
-      grievanceTitle: '५. तक्रार निवारण अधिकारी',
-      grievanceText: 'आपल्या वैयक्तिक डेटा प्रक्रियेबाबत काही तक्रार असल्यास आपण आमच्या तक्रार निवारण अधिकाऱ्याशी [grievance officer email] वर संपर्क साधू शकता.',
-      childrenNotice: hasChildren
-        ? 'टीप: या अर्जात १८ वर्षांखालील बालकांच्या माहितीचा समावेश असू शकत असल्याने, डीपीडीपी कायद्यानुसार पालक अथवा कायदेशीर पालकांची पडताळणीयोग्य संमती आवश्यक आहे.'
+      headline: 'संमती सूचनेचा मसुदा (कलम 6, DPDP कायदा 2023)',
+      collectTitle: '1. आम्ही गोळा करत असलेली वैयक्तिक माहिती',
+      collectItems: collectedList.length > 0 ? collectedList : ['कोणतीही वैयक्तिक माहिती आवश्यक नाही'],
+      purposeTitle: '2. माहिती गोळा करण्याचा उद्देश',
+      purposeText: `हा डेटा केवळ ${purposePhrase} या उद्देशासाठी गोळा केला जातो.`,
+      withdrawTitle: '3. संमती कशी मागे घ्यावी (हक्क)',
+      withdrawText: 'तुम्ही कोणत्याही वेळी [support@example.com] येथे संपर्क साधून तुमची संमती मागे घेऊ शकता.',
+      retentionTitle: '4. माहिती साठवण कालावधी',
+      retentionText: 'उद्देश पूर्ण होईपर्यंतच ही माहिती साठवली जाईल (अंदाजे [12 महिने]).',
+      grievanceTitle: '5. तक्रार निवारण अधिकारी',
+      grievanceText: 'कोणत्याही तक्रारीसाठी आमच्या तक्रार निवारण अधिकाऱ्याशी [grievance@example.com] येथे संपर्क साधावा.',
+      draftDisclaimer: 'हा मसुदा केवळ मदतीसाठी आहे. हा कायदेशीर सल्ला नाही.',
+      excludedNote: excessList.length > 0 ? `अनावश्यक बाबी (${excessText}) वगळून ही सूचना संक्षिप्त ठेवली आहे.` : 'सर्व आवश्यक बाबी समाविष्ट आहेत.',
+      paragraph1: {
+        prefix: 'आम्ही तुमचे ',
+        collectedData: collectedText,
+        mid: ' ',
+        purposePhrase: purposePhrase,
+        suffix: excessText ? `। या उद्देशासाठी आम्ही तुमचे ${excessText} गोळा करत नाही.` : '.'
+      },
+      paragraph2:
+        'तुम्ही कोणत्याही वेळी आमच्या ईमेलमधील “अनसब्सक्राइब” लिंकवर क्लिक करून किंवा [support@example.com] येथे संपर्क साधून तुमची संमती मागे घेऊ शकता.',
+      footerNote:
+        'ही मार्गदर्शनासाठी मसुदा सूचना आहे, कायदेशीर सल्ला नाही. कृपया ती तुमच्या संस्थेनुसार तपासा आणि बदला.',
+      childrenNotice: result.hasChildrenData
+        ? 'टीप: या अर्जात १८ वर्षांखालील बालकांच्या माहितीचा समावेश असू शकत असल्याने, पालकांची पडताळणीयोग्य संमती आवश्यक आहे.'
         : undefined,
-      excludedNote: 'अतिरिक्त आणि अनावश्यक फील्ड्स या संमती पत्रकातून वगळण्यात आल्या आहेत. त्या आपल्या अर्जातून काढून टाका किंवा योग्य औचित्य जोडा.',
-      draftDisclaimer: 'हा मसुदा केवळ मार्गदर्शनासाठी आहे. हा कायदेशीर सल्ला नाही. कृपया अधिकृत प्रकाशनापूर्वी कायदेतज्ज्ञांकडून तपासून घ्यावे.'
+      disclaimer: 'हा मसुदा केवळ मार्गदर्शनासाठी आहे. हा कायदेशीर सल्ला नाही.'
     };
   }
 
-  // Default: English
+  // English
   return {
-    headline: 'Draft DPDP Consent Notice',
-    collectTitle: '1. What we collect',
-    collectItems: englishItems,
-    purposeTitle: '2. Why we collect it',
-    purposeText: `We collect this personal data solely to fulfill "${result.purpose}". We do not process or share it for any secondary or incompatible purposes without your explicit consent.`,
-    withdrawTitle: '3. How to withdraw consent',
-    withdrawText: 'You can withdraw your consent at any time without penalty or affecting lawful processing conducted prior to withdrawal. To withdraw, email us at [your contact email] or use the unsubscribe option provided in our communications.',
-    retentionTitle: '4. Data retention period',
-    retentionText: 'We retain your personal data only for [retention period] or until the stated purpose is accomplished, after which it is securely erased in accordance with DPDP rules.',
+    headline: 'Draft Consent Notice (Section 6, DPDP Act 2023)',
+    collectTitle: '1. Personal data we collect',
+    collectItems: collectedList.length > 0 ? collectedList : ['No personal data required'],
+    purposeTitle: '2. Purpose of processing',
+    purposeText: `We collect this data solely to ${purposePhrase}.`,
+    withdrawTitle: '3. How to withdraw consent (Your Rights)',
+    withdrawText: 'You may withdraw consent at any time with equal ease by contacting us at [support@example.com] or via the unsubscribe link. Upon withdrawal, processing ceases within a reasonable period.',
+    retentionTitle: '4. Data Retention Period',
+    retentionText: 'Data is retained only as long as necessary to fulfill the stated purpose ([e.g., 12 months]), after which it is deleted or anonymized.',
     grievanceTitle: '5. Grievance Redressal',
-    grievanceText: 'If you have questions or grievances regarding your personal data, you may contact our designated Grievance Officer at [grievance officer email].',
-    childrenNotice: hasChildren
-      ? "Notice: Since this form may process data of children under 18 years of age, verifiable consent of a parent or legal guardian is strictly required under Section 9 of the DPDP Act."
+    grievanceText: 'For complaints or rights requests, contact our Grievance Officer at [grievance@example.com]. Under Section 6(2)(c), you also retain the right to approach the Data Protection Board of India.',
+    draftDisclaimer: 'DRAFT NOTICE FOR GUIDANCE ONLY — NOT LEGAL ADVICE. Have a qualified professional review before publishing.',
+    excludedNote: excessList.length > 0 ? `Excess fields (${excessText}) are excluded to preserve consent specificity.` : 'All required fields are documented.',
+    paragraph1: {
+      prefix: 'We collect your ',
+      collectedData: collectedText,
+      mid: ' to ',
+      purposePhrase: purposePhrase,
+      suffix: excessText ? `. We do not collect your ${excessText} for this purpose.` : '.'
+    },
+    paragraph2:
+      'You can withdraw your consent at any time by clicking the “Unsubscribe” link in our emails or by contacting us at [support@example.com]. After withdrawal, we will stop using your data for this purpose and delete it within a reasonable time.',
+    footerNote:
+      'This is a draft notice for guidance and not legal advice. Please review and customize it for your organization.',
+    childrenNotice: result.hasChildrenData
+      ? 'Notice: Since this form may process data of children under 18 years of age, verifiable consent of a parent or legal guardian is strictly obtained in accordance with Section 9 of the DPDP Act.'
       : undefined,
-    excludedNote: 'Excess fields are left out. Remove them from your form, or add a clear lawful justification before listing them.',
-    draftDisclaimer: 'Draft notice for guidance only. This is not legal advice. Review with a qualified professional before publishing.'
+    disclaimer: 'Draft notice for guidance only. Not legal advice. Review before publishing.'
   };
 }
 
@@ -142,85 +175,84 @@ export function generatePlainTextReport(result: AuditResult, lang: NoticeLanguag
 
   const lines: string[] = [
     '======================================================================',
-    '                   DPDP FORM COMPLIANCE AUDIT REPORT                  ',
+    '                   DPDP FORM AUDITOR: COMPLIANCE REPORT                ',
     '           In-Browser Rule Engine · Privacy First · Local Only         ',
     '======================================================================',
-    `Date: ${now}`,
+    `Audit Date: ${now}`,
     `Purpose Stated: ${result.purpose}`,
-    `Compliance Score: ${result.score}/100 (${result.scoreBand})`,
+    `Compliance Score: ${result.score} / 100 (${result.scoreBand})`,
     `Verdict: ${result.scoreStatusSentence}`,
     '',
     '----------------------------------------------------------------------',
     'SUMMARY COUNTS',
     '----------------------------------------------------------------------',
     `Total Fields: ${result.totalFields}`,
-    `Personal Data Fields: ${result.personalDataCount}`,
-    `Non-personal Fields: ${result.nonPersonalCount}`,
+    `Personal Data Fields: ${result.personalDataCount} (${result.personalPercent}%)`,
+    `Non-personal Fields: ${result.nonPersonalCount} (${result.nonPersonalPercent}%)`,
     `Necessary Fields: ${result.necessaryCount}`,
-    `Excess Fields: ${result.unnecessaryCount}`,
-    `Review / Borderline: ${result.reviewCount}`,
+    `Unnecessary Fields: ${result.unnecessaryCount}`,
     '',
     '----------------------------------------------------------------------',
-    'ITEMIZED FIELD ANALYSIS',
+    'FIELDS AUDIT TABLE',
     '----------------------------------------------------------------------'
   ];
 
   for (const f of result.fields) {
-    const sensitiveTag = f.sensitive ? ' [SENSITIVE]' : '';
-    const personalTag = f.isPersonalData ? 'Personal' : 'Non-Personal';
-    lines.push(`• Field: ${f.name} (type: ${f.type})`);
-    lines.push(`  Category: ${f.categoryLabel}${sensitiveTag} | Classification: ${personalTag}`);
-    lines.push(`  Verdict: [${f.verdict.toUpperCase()}]`);
-    lines.push(`  Reason: ${f.reason}`);
-    lines.push(`  Matched By: ${f.matchedBy.join(', ')}`);
+    const sens = f.sensitive ? ' (Sensitive / Higher Risk)' : '';
+    const verdict = f.verdict || (f.needed ? 'needed' : 'excess');
+    lines.push(`• Field: ${f.name} [Label: ${f.label}]`);
+    lines.push(`  Category: ${f.categoryLabel}${sens}`);
+    lines.push(`  Verdict: ${verdict.toUpperCase()} | Reason: ${f.reason}`);
+    lines.push(`  Matched by: ${f.matchedBy.join(', ')}`);
     lines.push('');
   }
 
   lines.push('----------------------------------------------------------------------');
-  lines.push('SCORE EXPLANATION & DEDUCTIONS');
+  lines.push('SCORE CALCULATION');
   lines.push('----------------------------------------------------------------------');
-  for (const d of result.scoreDeductions) {
-    const sign = d.delta > 0 ? `+${d.delta}` : `${d.delta}`;
-    lines.push(`  ${sign.padEnd(5)} ${d.reason}`);
+  lines.push('Starting score: 100');
+  if (result.scoreItems) {
+    for (const item of result.scoreItems) {
+      const sign = item.delta > 0 ? `+${item.delta}` : `${item.delta}`;
+      lines.push(`  ${sign.padEnd(5)} ${item.description}`);
+    }
+  } else if (result.scoreDeductions) {
+    for (const d of result.scoreDeductions) {
+      lines.push(`  -${d.delta} ${d.reason}`);
+    }
   }
-  lines.push('');
-
-  lines.push('----------------------------------------------------------------------');
-  lines.push('RECOMMENDED IMPROVEMENTS');
-  lines.push('----------------------------------------------------------------------');
-  result.topImprovements.forEach((imp, i) => {
-    lines.push(`  ${i + 1}. ${imp}`);
-  });
+  lines.push(`Total score: ${result.score} / 100`);
   lines.push('');
 
   lines.push('======================================================================');
   lines.push(`DRAFT CONSENT NOTICE (${lang.toUpperCase()})`);
   lines.push('======================================================================');
-  lines.push(`[${notice.draftDisclaimer}]`);
+  lines.push(notice.headline);
   lines.push('');
-  lines.push(notice.collectTitle);
-  notice.collectItems.forEach((item) => lines.push(`  - ${item}`));
-  lines.push('');
-  lines.push(notice.purposeTitle);
-  lines.push(`  ${notice.purposeText}`);
-  lines.push('');
-  lines.push(notice.withdrawTitle);
-  lines.push(`  ${notice.withdrawText}`);
-  lines.push('');
-  lines.push(notice.retentionTitle);
-  lines.push(`  ${notice.retentionText}`);
-  lines.push('');
-  lines.push(notice.grievanceTitle);
-  lines.push(`  ${notice.grievanceText}`);
-  if (notice.childrenNotice) {
-    lines.push('');
-    lines.push(`  ${notice.childrenNotice}`);
+  lines.push(`${notice.collectTitle}:`);
+  for (const item of notice.collectItems) {
+    lines.push(`  • ${item}`);
   }
   lines.push('');
-  lines.push('======================================================================');
-  lines.push('LEGAL DISCLAIMER:');
-  lines.push('Draft output for guidance only. This is not legal advice. Generated locally');
-  lines.push('via rule-based heuristics under the Digital Personal Data Protection Act, 2023.');
+  lines.push(`${notice.purposeTitle}:`);
+  lines.push(`  ${notice.purposeText}`);
+  lines.push('');
+  lines.push(`${notice.withdrawTitle}:`);
+  lines.push(`  ${notice.withdrawText}`);
+  lines.push('');
+  lines.push(`${notice.retentionTitle}:`);
+  lines.push(`  ${notice.retentionText}`);
+  lines.push('');
+  lines.push(`${notice.grievanceTitle}:`);
+  lines.push(`  ${notice.grievanceText}`);
+  lines.push('');
+  if (notice.childrenNotice) {
+    lines.push(`CHILDREN DATA NOTICE:`);
+    lines.push(`  ${notice.childrenNotice}`);
+    lines.push('');
+  }
+  lines.push(`DISCLAIMER:`);
+  lines.push(`  ${notice.draftDisclaimer}`);
   lines.push('======================================================================');
 
   return lines.join('\n');

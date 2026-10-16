@@ -83,8 +83,8 @@ class RulesEngine:
         s1 = re.sub(r"([a-z0-9])([A-Z])", r"\1 \2", text)
         # Replace symbols with spaces
         s2 = re.sub(r"[_\-\.\:\/]", " ", s1)
-        # Remove non-alphanumeric except spaces
-        cleaned = re.sub(r"[^a-zA-Z0-9\s]", " ", s2).lower()
+        # Remove non-alphanumeric/punctuation except spaces (preserving Unicode/Devanagari)
+        cleaned = re.sub(r"[^\w\s]", " ", s2).lower()
         raw_tokens = [t.strip() for t in cleaned.split() if t.strip()]
 
         # Prefixes to strip
@@ -266,8 +266,9 @@ class RulesEngine:
                 if not text:
                     continue
                 for item in all_known:
-                    # check word boundary
-                    if re.search(rf"\b{re.escape(item)}\b", text, re.IGNORECASE):
+                    is_ascii_word = item.isascii() and item.isalnum()
+                    matched = bool(re.search(rf"\b{re.escape(item)}\b", text, re.IGNORECASE)) if is_ascii_word else (item in text)
+                    if matched:
                         cat_meta = self.categories_by_id.get(cat_id, {})
                         is_sensitive = cat_meta.get("sensitive", False)
                         if cat_id == "demographic" and item in {"religion", "caste", "jaati", "dharma"}:
@@ -350,7 +351,7 @@ class RulesEngine:
             if category in {"demographic", "location"}:
                 return ("excess", f"Collecting {name} is unnecessary for a newsletter signup. An email address is sufficient.")
             if category == "contact":
-                return ("review", "Phone number is optional at best. Collect only if you send SMS updates, and state so clearly.")
+                return ("excess", "A newsletter only needs an email address. Collecting a phone number is unnecessary for newsletter delivery.")
             return ("excess", "Collecting this field exceeds the stated purpose of newsletter subscription.")
 
         # 2. Contact Us

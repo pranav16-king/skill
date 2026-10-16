@@ -11,60 +11,55 @@ export const PrintReport: React.FC<PrintReportProps> = ({ result, language }) =>
   if (!result) return null;
 
   const notice = generateConsentNotice(result, language);
-  const now = new Date().toLocaleDateString('en-IN', {
-    day: 'numeric',
-    month: 'short',
-    year: 'numeric'
-  });
 
   return (
-    <div className="hidden print-only print-container p-6 bg-white text-black font-sans">
-      {/* Header */}
-      <div className="border-b-2 border-black pb-4 mb-6 flex justify-between items-start">
+    <div className="hidden print-only print-container p-6 bg-white text-black font-sans leading-relaxed">
+      {/* Title & Header */}
+      <div className="border-b-2 border-black pb-4 mb-5 flex justify-between items-start">
         <div>
-          <h1 className="text-xl font-bold uppercase tracking-wide">
+          <h1 className="text-2xl font-bold tracking-tight">
             DPDP Form Compliance Audit Report
           </h1>
           <p className="text-sm text-gray-700 mt-1">
-            Statutory assessment under Digital Personal Data Protection Act, 2023
+            Section 6 & 9 Data Minimisation Assessment
           </p>
-          <p className="text-xs text-gray-500 mt-1">
-            Generated locally in-browser · Verification date: {now}
+          <p className="text-xs text-gray-500 mt-0.5">
+            100% private in-browser analysis · Generated locally
           </p>
         </div>
-        <div className="text-right border border-black p-2.5 rounded">
-          <div className="text-xs font-semibold uppercase text-gray-600">Compliance Score</div>
-          <div className="text-2xl font-bold">{result.score} / 100</div>
-          <div className="text-xs font-semibold">{result.scoreBand}</div>
+        <div className="text-right border-2 border-black p-3 rounded-lg min-w-[120px]">
+          <div className="text-xs font-bold uppercase text-gray-600">Compliance Score</div>
+          <div className="text-3xl font-extrabold">{result.score} / 100</div>
+          <div className="text-xs font-bold">{result.scoreBand}</div>
         </div>
       </div>
 
-      {/* Overview Block */}
-      <div className="mb-6 bg-gray-50 border border-gray-300 p-3.5 rounded text-xs space-y-1">
+      {/* Purpose & Summary Tiles as text */}
+      <div className="mb-6 p-4 border border-gray-300 bg-gray-50 rounded-lg text-xs space-y-1.5">
         <div>
-          <span className="font-bold">Form Purpose Stated:</span> {result.purpose}
+          <span className="font-bold">Form Purpose Stated:</span> “{result.purpose}”
         </div>
         <div>
-          <span className="font-bold">Evaluation Summary:</span> {result.totalFields} total fields analyzed ({result.personalDataCount} personal data, {result.necessaryCount} necessary, {result.unnecessaryCount} excess, {result.reviewCount} review).
+          <span className="font-bold">Summary Metrics:</span> {result.totalFields} total fields | {result.personalDataCount} personal data ({result.personalPercent}%) | {result.nonPersonalCount} non-personal ({result.nonPersonalPercent}%) | {result.necessaryCount} necessary | {result.unnecessaryCount} unnecessary (excess).
         </div>
         <div>
-          <span className="font-bold">Key Recommendation:</span> {result.scoreStatusSentence}
+          <span className="font-bold">Assessment:</span> {result.scoreStatusSentence}
         </div>
       </div>
 
-      {/* Field Breakdown Table */}
-      <div className="mb-8">
+      {/* Fields Table */}
+      <div className="mb-6">
         <h2 className="text-sm font-bold uppercase border-b border-black pb-1 mb-2">
-          1. Field Itemization & Necessity Findings
+          1. Field Itemization & Findings
         </h2>
         <table className="w-full text-xs border border-gray-300 border-collapse">
           <thead>
             <tr className="bg-gray-100 border-b border-gray-300 text-left">
-              <th className="p-2 border-r border-gray-300">Field Name</th>
-              <th className="p-2 border-r border-gray-300">Category</th>
-              <th className="p-2 border-r border-gray-300">Classification</th>
-              <th className="p-2 border-r border-gray-300">Verdict</th>
-              <th className="p-2">Reason & Matched Hint</th>
+              <th className="p-2 border-r border-gray-300 w-[24%]">Field</th>
+              <th className="p-2 border-r border-gray-300 w-[20%]">Category</th>
+              <th className="p-2 border-r border-gray-300 w-[14%]">Personal Data?</th>
+              <th className="p-2 border-r border-gray-300 w-[14%]">Needed?</th>
+              <th className="p-2 w-[28%]">Reason</th>
             </tr>
           </thead>
           <tbody>
@@ -72,15 +67,18 @@ export const PrintReport: React.FC<PrintReportProps> = ({ result, language }) =>
               <tr key={f.id} className="border-b border-gray-200">
                 <td className="p-2 font-mono font-bold border-r border-gray-300">
                   {f.name}
+                  <span className="font-sans font-normal text-gray-600 block text-[11px] mt-0.5">
+                    {f.label}
+                  </span>
                 </td>
                 <td className="p-2 border-r border-gray-300">
                   {f.categoryLabel} {f.sensitive ? '(Sensitive)' : ''}
                 </td>
-                <td className="p-2 border-r border-gray-300">
-                  {f.isPersonalData ? 'Personal' : 'Non-Personal'}
+                <td className="p-2 border-r border-gray-300 font-bold">
+                  {f.isPersonalData ? 'Yes' : 'No'}
                 </td>
-                <td className="p-2 font-bold border-r border-gray-300">
-                  [{f.verdict.toUpperCase()}]
+                <td className="p-2 border-r border-gray-300 font-bold">
+                  {f.needed ? 'Yes' : 'No (Excess)'}
                 </td>
                 <td className="p-2">
                   <div>{f.reason}</div>
@@ -94,65 +92,56 @@ export const PrintReport: React.FC<PrintReportProps> = ({ result, language }) =>
         </table>
       </div>
 
-      {/* Score Deductions */}
-      <div className="mb-8">
+      {/* Score Calculation */}
+      <div className="mb-6">
         <h2 className="text-sm font-bold uppercase border-b border-black pb-1 mb-2">
           2. Score Calculation Breakdown
         </h2>
-        <div className="space-y-1 text-xs">
-          {result.scoreDeductions.map((d, i) => (
-            <div key={i} className="flex gap-3">
-              <span className="font-mono font-bold w-12 text-right">
-                {d.delta > 0 ? `+${d.delta}` : d.delta}
+        <div className="text-xs space-y-1">
+          <div className="flex justify-between w-64 border-b pb-0.5 font-bold">
+            <span>Base score</span>
+            <span>100</span>
+          </div>
+          {(result.scoreItems || []).map((item, idx) => (
+            <div key={idx} className="flex justify-between w-64">
+              <span>{item.description}</span>
+              <span className="font-mono font-bold">
+                {item.delta > 0 ? `+${item.delta}` : item.delta}
               </span>
-              <span>{d.reason}</span>
             </div>
           ))}
+          <div className="flex justify-between w-64 border-t pt-0.5 font-bold text-sm">
+            <span>Total score</span>
+            <span>{result.score} / 100</span>
+          </div>
         </div>
       </div>
 
       {/* Draft Consent Notice */}
-      <div className="mb-8 page-break">
+      <div className="mb-6 page-break">
         <h2 className="text-sm font-bold uppercase border-b border-black pb-1 mb-3">
-          3. Draft Statutory Consent Notice ({language.toUpperCase()})
+          3. Draft Consent Notice ({language.toUpperCase()})
         </h2>
-        <div className="border border-gray-300 p-4 rounded text-xs space-y-3 leading-relaxed">
-          <div className="font-bold underline">{notice.headline}</div>
-          <div>
-            <div className="font-bold">{notice.collectTitle}</div>
-            <ul className="list-disc pl-5">
-              {notice.collectItems.map((item, idx) => (
-                <li key={idx}>{item}</li>
-              ))}
-            </ul>
-          </div>
-          <div>
-            <div className="font-bold">{notice.purposeTitle}</div>
-            <p>{notice.purposeText}</p>
-          </div>
-          <div>
-            <div className="font-bold">{notice.withdrawTitle}</div>
-            <p>{notice.withdrawText}</p>
-          </div>
-          <div>
-            <div className="font-bold">{notice.retentionTitle}</div>
-            <p>{notice.retentionText}</p>
-          </div>
-          <div>
-            <div className="font-bold">{notice.grievanceTitle}</div>
-            <p>{notice.grievanceText}</p>
-          </div>
+        <div className="border border-gray-300 p-4 rounded-lg text-xs space-y-3 leading-relaxed">
+          <h3 className="font-bold text-sm">{notice.headline}</h3>
+          <p>
+            {notice.paragraph1.prefix}
+            <strong>{notice.paragraph1.collectedData}</strong>
+            {notice.paragraph1.mid}
+            {notice.paragraph1.purposePhrase}
+            {notice.paragraph1.suffix}
+          </p>
+          <p>{notice.paragraph2}</p>
           {notice.childrenNotice && (
-            <div className="border border-gray-400 p-2 font-medium">
-              {notice.childrenNotice}
-            </div>
+            <p className="font-semibold text-gray-800">{notice.childrenNotice}</p>
           )}
+          <p className="italic text-gray-600 pt-2 border-t">{notice.footerNote}</p>
         </div>
       </div>
 
       {/* Disclaimer */}
-      <div className="text-[11px] text-gray-600 border-t border-gray-400 pt-3">
-        <strong>LEGAL DISCLAIMER:</strong> Draft output for guidance only. This document is not formal legal advice. Compliance decisions must be reviewed by qualified legal counsel in accordance with the Digital Personal Data Protection Act (DPDP), 2023.
+      <div className="border-t-2 border-black pt-3 text-[11px] text-gray-600">
+        <strong>Draft notice for guidance. Not legal advice. Review before publishing.</strong> Generated locally via the DPDP Form Auditor in-browser compliance engine.
       </div>
     </div>
   );

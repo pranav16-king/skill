@@ -12,11 +12,13 @@ def run_form_audit(request: AuditRequest) -> AuditResponse:
     to perform a comprehensive DPDP compliance audit.
     Returns classified fields, excess flags, reasons, draft notice, and compliance score.
     """
-    if not request.form_input or not request.form_input.strip():
+    effective_input = request.get_effective_input() if hasattr(request, "get_effective_input") else (request.form_input or "").strip()
+    if not effective_input:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail="Form input cannot be empty. Paste HTML form code or provide a list of field names.",
         )
+    request.form_input = effective_input
     if not request.purpose or not request.purpose.strip():
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,

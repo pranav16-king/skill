@@ -10,6 +10,7 @@ from app.services.rules import (
     normalize_purpose_slug,
 )
 from app.services.scorer import calculate_compliance_score
+from app.services.translator import GoogleTranslatorService, translator_service
 
 __all__ = [
     "execute_form_audit",
@@ -24,4 +25,6 @@ __all__ = [
     "calculate_compliance_score",
     "PURPOSE_RULES",
     "CATEGORIES_METADATA",
+    "GoogleTranslatorService",
+    "translator_service",
 ]

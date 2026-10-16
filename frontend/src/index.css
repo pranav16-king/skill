@@ -1,50 +1,49 @@
 @import "tailwindcss";
 
 :root {
+  /* Brand / chrome */
+  --navy-900: #0B1530;      /* sidebar */
+  --navy-800: #11204A;
+  --blue-600: #1F4FE0;      /* primary button, active nav, step badge */
+  --blue-700: #1A42BD;
+  --purple-600: #5B3FE0;    /* "Download PDF" primary action */
+  --purple-700: #4A31C2;
+
   /* Surfaces */
-  --paper: #F6F8FB;
-  --surface: #FFFFFF;
-  --surface-alt: #EEF2F7;
-  --line: #D8DFEA;
-  --line-strong: #B7C2D3;
+  --bg: #F3F6FB;            /* page */
+  --surface: #FFFFFF;       /* panels */
+  --surface-alt: #F6F8FC;   /* table header, code well */
+  --border: #DFE5F0;
+  --border-strong: #C3CCDD;
 
   /* Text */
-  --ink: #14213D;
-  --ink-2: #3D4A63;
-  --ink-3: #5A6780;
+  --text: #12203D;
+  --text-2: #3F4C68;
+  --text-3: #5F6B85;        /* min 4.5:1 on white */
 
-  /* Primary action */
-  --primary: #2B3A9E;
-  --primary-hover: #222F82;
-  --primary-tint: #E8EBFA;
+  /* Verdict + summary tiles (bg / border / text) */
+  --personal-bg:   #FDECEC;  --personal-bd:   #F5C2C2;  --personal-tx:   #B3261E;
+  --nonpers-bg:    #E7F6EE;  --nonpers-bd:    #B7E2CA;  --nonpers-tx:    #0F7A4F;
+  --necessary-bg:  #E8F0FE;  --necessary-bd:  #BCD0F8;  --necessary-tx:  #1F4FE0;
+  --unnecessary-bg:#FFF0E6;  --unnecessary-bd:#F8CFAF;  --unnecessary-tx:#B5470A;
+
+  /* Yes / No pills */
+  --yes-bg: #FDECEC; --yes-tx: #B3261E;     /* "Personal data? Yes" */
+  --ok-bg:  #E3F4EB; --ok-tx:  #0F7A4F;     /* "Needed? Yes" */
+  --no-bg:  #FDECEC; --no-tx:  #B3261E;     /* "Needed? No" (excess) */
+  --na-bg:  #EEF1F6; --na-tx:  #5F6B85;     /* "Personal data? No" */
+
   --focus: #1D4ED8;
 
-  /* Verdicts */
-  --needed: #0F7A4F;
-  --needed-bg: #E3F4EB;
-  --excess: #B3261E;
-  --excess-bg: #FCE9E7;
-  --review: #8A5300;
-  --review-bg: #FFF0D1;
-  --neutral: #5A6780;
-  --neutral-bg: #EAEEF4;
-
   /* Score bands */
-  --score-strong: #0F7A4F;
-  --score-fair: #2B6CB0;
-  --score-weak: #8A5300;
-  --score-poor: #B3261E;
-
-  /* Sidebar Navy */
-  --sidebar-bg: #0B1530;
-  --sidebar-line: #1C2746;
-  --sidebar-text: #BAC7DE;
-  --sidebar-hover: #192648;
-  --sidebar-active: #2A3B66;
+  --score-good:  #0F7A4F;  /* 80-100 */
+  --score-fair:  #2B6CB0;  /* 60-79  */
+  --score-needs: #E8830C;  /* 40-59  */
+  --score-poor:  #B3261E;  /* 0-39   */
 
   /* Fonts */
-  --font-ui: "IBM Plex Sans", "Inter", system-ui, -apple-system, "Segoe UI", Roboto, "Noto Sans", "Noto Sans Devanagari", "Nirmala UI", sans-serif;
-  --font-mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  --font: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, "Noto Sans", "Noto Sans Devanagari", "Nirmala UI", sans-serif;
+  --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
 }
 
 * {
@@ -54,9 +53,9 @@
 body {
   margin: 0;
   padding: 0;
-  background-color: var(--paper);
-  color: var(--ink);
-  font-family: var(--font-ui);
+  background-color: var(--bg);
+  color: var(--text);
+  font-family: var(--font);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
@@ -68,18 +67,14 @@ body {
 
 /* Redline wavy underline signature element */
 .redline-wavy {
-  text-decoration: underline wavy var(--excess);
+  text-decoration: underline wavy var(--personal-tx);
   text-underline-offset: 4px;
 }
 
-/* Excess table row redline treatment */
+/* Excess table row redline treatment per ui.md (3px left border and #FFF7F7 tint) */
 .excess-row {
-  border-left: 3px solid var(--excess) !important;
-  background-color: rgba(252, 233, 231, 0.45);
-}
-
-.review-row {
-  border-left: 3px solid var(--review) !important;
+  border-left: 3px solid var(--no-tx) !important;
+  background-color: #FFF7F7 !important;
 }
 
 .tabular-nums {
@@ -102,7 +97,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, a:focus-visib
   }
   body {
     background: #ffffff !important;
-    color: #14213D !important;
+    color: #12203D !important;
   }
   .print-container {
     padding: 0 !important;

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Sidebar } from './components/Sidebar';
 import { Header } from './components/Header';
 import { PanelInput } from './components/PanelInput';
@@ -9,7 +9,7 @@ import { PanelNotice } from './components/PanelNotice';
 import { PanelActions } from './components/PanelActions';
 import { PrintReport } from './components/PrintReport';
 
-import {
+import type {
   AuditResult,
   FieldCategory,
   InputMode,
@@ -35,7 +35,6 @@ export const App: React.FC = () => {
   const [purpose, setPurpose] = useState<string>(SAMPLE_MESSY_PURPOSE);
   const [result, setResult] = useState<AuditResult | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const [backendSource, setBackendSource] = useState<'backend' | 'in-browser'>('in-browser');
   const [isOutOfDate, setIsOutOfDate] = useState(false);
 
   // Filter & Language State
@@ -48,9 +47,38 @@ export const App: React.FC = () => {
   const [copyToast, setCopyToast] = useState(false);
   const [toastMessage, setToastMessage] = useState<string>('');
 
-  // Initial audit run on mount so judges and visitors see instant results
+  // Initial audit run on mount
   useEffect(() => {
-    runAudit(SAMPLE_MESSY_FORM_HTML, SAMPLE_MESSY_PURPOSE, 'html');
+    const initial = auditForm(SAMPLE_MESSY_FORM_HTML, SAMPLE_MESSY_PURPOSE, 'html');
+    setResult(initial);
+  }, []);
+
+  // Scroll spy to update active section in sidebar
+  useEffect(() => {
+    const handleScroll = () => {
+      const panels = [
+        'panel-input',
+        'panel-results',
+        'panel-score',
+        'panel-categories',
+        'panel-notice',
+        'panel-actions'
+      ];
+
+      for (const id of panels) {
+        const el = document.getElementById(id);
+        if (el) {
+          const rect = el.getBoundingClientRect();
+          if (rect.top <= 200 && rect.bottom >= 150) {
+            setActiveSection(id);
+            break;
+          }
+        }
+      }
+    };
+
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
   // Set out-of-date flag when input changes
@@ -71,12 +99,12 @@ export const App: React.FC = () => {
     let hasError = false;
 
     if (!inputStr.trim()) {
-      setInputError('Paste your form HTML or enter field identifiers.');
+      setInputError('Paste your form HTML or list some field names.');
       hasError = true;
     }
 
     if (!purpStr.trim()) {
-      setPurposeError('Specify a purpose so we can judge what data is necessary.');
+      setPurposeError('Add a one-line purpose so we can judge what is necessary.');
       hasError = true;
     }
 
@@ -89,21 +117,23 @@ export const App: React.FC = () => {
     try {
       const response = await executeAudit(inputStr, purpStr, inputMode);
       setResult(response.result);
-      setBackendSource(response.source);
       setIsOutOfDate(false);
 
       if (response.result.fields.length === 0) {
         setInputError(
           inputMode === 'html'
-            ? 'No input elements detected. Ensure you paste valid form HTML or switch to "Enter field list".'
-            : 'No field identifiers detected.'
+            ? 'We could not find any fields. Check the HTML, or switch to Enter field list.'
+            : 'We could not find any fields.'
+        );
+      } else {
+        // Accessibility announcement
+        showLiveToast(
+          `Analysis complete: ${response.result.unnecessaryCount} unnecessary fields, score ${response.result.score} out of 100.`
         );
       }
     } catch {
-      // Local fallback guaranteed
       const fallback = auditForm(inputStr, purpStr, inputMode);
       setResult(fallback);
-      setBackendSource('in-browser');
       setIsOutOfDate(false);
     } finally {
       setIsAnalyzing(false);
@@ -119,7 +149,7 @@ export const App: React.FC = () => {
     setPurposeError(undefined);
     setSelectedCategoryFilter(null);
     runAudit(SAMPLE_MESSY_FORM_HTML, SAMPLE_MESSY_PURPOSE, 'html');
-    showLiveToast('Loaded sample messy form (Section 14 test)');
+    showLiveToast('Loaded sample form (Judge test case)');
   };
 
   // Clear inputs
@@ -137,7 +167,6 @@ export const App: React.FC = () => {
   const handleCopyNotice = () => {
     if (!result) return;
     const txt = generatePlainTextReport(result, language);
-    // Extract notice portion
     const parts = txt.split('======================================================================\nDRAFT CONSENT NOTICE');
     const noticeContent = parts.length > 1 ? parts[1] : txt;
 
@@ -174,7 +203,7 @@ export const App: React.FC = () => {
     window.print();
   };
 
-  // Show temporary toast
+  // Show live toast message
   const showLiveToast = (msg: string) => {
     setToastMessage(msg);
     setTimeout(() => {
@@ -188,15 +217,21 @@ export const App: React.FC = () => {
     const el = document.getElementById(sectionId);
     if (el) {
       el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      // Move keyboard focus to heading inside panel for accessibility
+      const heading = el.querySelector('h2');
+      if (heading) {
+        heading.setAttribute('tabindex', '-1');
+        heading.focus();
+      }
     }
   };
 
   return (
-    <div className="min-h-screen bg-[var(--paper)] text-[var(--ink)] flex flex-col font-sans">
+    <div className="min-h-screen bg-[var(--bg)] text-[var(--text)] flex flex-col font-sans">
       {/* Printable Report (visible only in print) */}
       <PrintReport result={result} language={language} />
 
-      {/* Left Sidebar */}
+      {/* Left Sidebar (232px expanded, 72px collapsed, drawer on mobile <1024px) */}
       <Sidebar
         activeSection={activeSection}
         onNavigate={handleNavigate}
@@ -204,6 +239,7 @@ export const App: React.FC = () => {
         onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
         mobileOpen={mobileMenuOpen}
         onCloseMobile={() => setMobileMenuOpen(false)}
+        result={result}
       />
 
       {/* Main Content Area */}
@@ -212,14 +248,13 @@ export const App: React.FC = () => {
           sidebarCollapsed ? 'lg:pl-[72px]' : 'lg:pl-[232px]'
         }`}
       >
-        {/* Top Header */}
+        {/* Top Header: Title "Audit a form" + 100% Private Badge */}
         <Header
           onOpenMobileMenu={() => setMobileMenuOpen(true)}
           onLoadSample={handleLoadSample}
           language={language}
           onSelectLanguage={setLanguage}
           isOutOfDate={isOutOfDate}
-          backendSource={backendSource}
         />
 
         {/* Live Toast Notification */}
@@ -227,18 +262,18 @@ export const App: React.FC = () => {
           <div
             role="status"
             aria-live="polite"
-            className="fixed bottom-6 right-6 z-50 px-4 py-2.5 rounded-lg bg-[var(--ink)] text-white text-xs font-medium shadow-xl flex items-center gap-2 border border-white/20 transition-all duration-200"
+            className="fixed bottom-6 right-6 z-50 px-4 py-2.5 rounded-xl bg-[var(--text)] text-white text-xs font-semibold shadow-2xl flex items-center gap-2 border border-white/20 transition-all duration-200"
           >
-            <span className="w-2 h-2 rounded-full bg-[var(--needed)]" />
+            <span className="w-2 h-2 rounded-full bg-[#4BB543]" />
             <span>{toastMessage}</span>
           </div>
         )}
 
-        {/* Dashboard 6-Panel Layout in 2 Rows */}
-        <main className="flex-1 p-4 sm:p-6 max-w-[1600px] w-full mx-auto space-y-6 no-print">
-          {/* ROW 1: Input (360px) + Results (Fluid) + Score (320px) */}
+        {/* Dashboard 6-Panel Layout in 2 Rows per ui.md Section 2 */}
+        <main className="flex-1 p-4 sm:p-6 max-w-[1600px] w-full mx-auto space-y-5 no-print">
+          {/* ROW 1: [1 Provide Input] (360px) [2 Analysis Results] (Fluid) [3 Compliance Score] (320px) */}
           <section className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
-            {/* Panel 1: Provide Input (360px / col-span-3 on lg) */}
+            {/* Panel 1: Provide Input (360px / col-span-3 or 4) */}
             <div className="lg:col-span-4 xl:col-span-3">
               <PanelInput
                 mode={mode}
@@ -256,7 +291,7 @@ export const App: React.FC = () => {
               />
             </div>
 
-            {/* Panel 2: Analysis Results (Fluid / col-span-5 on lg) */}
+            {/* Panel 2: Analysis Results (Fluid / col-span-5 or 6) */}
             <div className="lg:col-span-5 xl:col-span-6">
               <PanelResults
                 result={result}
@@ -265,22 +300,22 @@ export const App: React.FC = () => {
               />
             </div>
 
-            {/* Panel 3: Compliance Score (320px / col-span-3 on lg) */}
+            {/* Panel 3: Compliance Score (320px / col-span-3) */}
             <div className="lg:col-span-3 xl:col-span-3">
               <PanelScore result={result} />
             </div>
           </section>
 
-          {/* ROW 2: Data Categories (Fluid) + Consent Notice (1.4fr) + Actions (320px) */}
+          {/* ROW 2: [4 Data Categories] (Fluid) [5 Draft Consent Notice] (1.4fr) [6 Actions] (320px) */}
           <section className="space-y-5">
-            {/* Panel 4: Data Categories (Full fluid width across Row 2 top) */}
+            {/* Panel 4: Data Categories (Full fluid width across Row 2) */}
             <PanelCategories
               result={result}
               selectedCategory={selectedCategoryFilter}
               onSelectCategory={setSelectedCategoryFilter}
             />
 
-            {/* Sub-row: Panel 5 (Notice 1.4fr) + Panel 6 (Actions 320px) */}
+            {/* Sub-grid for Panel 5 (1.4fr) & Panel 6 (320px) */}
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
               {/* Panel 5: Draft Consent Notice (1.4fr ~ 8 cols) */}
               <div className="lg:col-span-8 xl:col-span-8">
@@ -288,12 +323,10 @@ export const App: React.FC = () => {
                   result={result}
                   language={language}
                   onLanguageChange={setLanguage}
-                  onCopyNotice={handleCopyNotice}
-                  copyToast={copyToast}
                 />
               </div>
 
-              {/* Panel 6: Export & Actions (320px ~ 4 cols) */}
+              {/* Panel 6: Actions / Export (320px ~ 4 cols) */}
               <div className="lg:col-span-4 xl:col-span-4">
                 <PanelActions
                   result={result}
@@ -301,19 +334,18 @@ export const App: React.FC = () => {
                   onDownloadTxt={handleDownloadTxt}
                   onCopyNotice={handleCopyNotice}
                   copyToast={copyToast}
-                  language={language}
                 />
               </div>
             </div>
           </section>
 
-          {/* Persistent Footer Disclaimer */}
-          <footer className="pt-6 pb-4 border-t border-[var(--line)] text-center text-xs text-[var(--ink-3)] flex flex-col sm:flex-row items-center justify-between gap-2">
+          {/* Footer note */}
+          <footer className="pt-6 pb-4 border-t border-[var(--border)] text-center text-xs text-[var(--text-3)] flex flex-col sm:flex-row items-center justify-between gap-2">
             <div>
-              <span className="font-semibold text-[var(--ink)]">DPDP Form Auditor</span> · In-browser Section 6 data minimisation engine
+              <span className="font-bold text-[var(--text)]">DPDP Form Auditor</span> · Digital Personal Data Protection Act compliance
             </div>
             <div>
-              Draft output for guidance only. Not legal advice. No form data leaves your browser.
+              100% private in-browser analysis. Not formal legal advice.
             </div>
           </footer>
         </main>
