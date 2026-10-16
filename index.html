@@ -1,0 +1,3720 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="X-UA-Compatible" content="ie=edge">
+  <title>DPDP Form Auditor - In-Browser Privacy Compliance</title>
+  <style>
+    /* ==========================================================================
+       THEME TOKENS: "Ink on Paper" Light Theme (Design Skill & ui.md)
+       ========================================================================== */
+    :root {
+      /* Surfaces */
+      --paper:        #F6F8FB;  /* app background */
+      --surface:      #FFFFFF;  /* panels, table, inputs */
+      --surface-alt:  #EEF2F7;  /* table header, code well, hover */
+      --line:         #D8DFEA;  /* borders, dividers */
+      --line-strong:  #B7C2D3;  /* input borders, focus-adjacent */
+
+      /* Sidebar & Dark Accents */
+      --navy-sidebar: #0B1530;  /* sidebar background */
+      --navy-hover:   #15234A;
+      --navy-active:  #1E3166;
+      --navy-text:    #94A3B8;
+      --navy-text-hi: #F8FAFC;
+
+      /* Text (WCAG AA compliant) */
+      --ink:          #14213D;  /* headings, body (15.7:1) */
+      --ink-2:        #3D4A63;  /* secondary text (9:1) */
+      --ink-3:        #5A6780;  /* hints, meta (5.6:1) */
+
+      /* Primary action */
+      --primary:      #2B3A9E;  /* buttons, links, active tab (8.6:1 on white) */
+      --primary-hover:#222F82;
+      --primary-tint: #E8EBFA;
+      --focus:        #1D4ED8;  /* 3px focus ring */
+
+      /* Verdicts */
+      --needed:       #0F7A4F;  --needed-bg:  #E3F4EB;
+      --excess:       #B3261E;  --excess-bg:  #FCE9E7;
+      --review:       #8A5300;  --review-bg:  #FFF0D1;
+      --neutral:      #5A6780;  --neutral-bg: #EAEEF4;
+
+      /* Score bands */
+      --score-strong: #0F7A4F;  /* 85-100 */
+      --score-fair:   #2B6CB0;  /* 65-84  */
+      --score-weak:   #8A5300;  /* 40-64  */
+      --score-poor:   #B3261E;  /* 0-39   */
+
+      /* Fonts (System privacy-safe, zero CDN) */
+      --font-ui:   "IBM Plex Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Noto Sans", "Noto Sans Devanagari", "Nirmala UI", sans-serif;
+      --font-mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, Consolas, "Courier New", monospace;
+
+      /* Spacing Scale (4px grid) */
+      --space-1: 4px;
+      --space-2: 8px;
+      --space-3: 12px;
+      --space-4: 16px;
+      --space-6: 24px;
+      --space-8: 32px;
+      --space-12: 48px;
+
+      /* Radius */
+      --radius-sm: 6px;
+      --radius-md: 8px;
+      --radius-lg: 12px;
+      --radius-full: 9999px;
+
+      /* Elevation / Shadows */
+      --shadow-popover: 0 8px 24px rgba(20, 33, 61, 0.12);
+      --shadow-subtle: 0 1px 3px rgba(20, 33, 61, 0.05);
+
+      /* Layout */
+      --sidebar-width: 232px;
+      --sidebar-collapsed: 72px;
+    }
+
+    /* ==========================================================================
+       RESET & BASE
+       ========================================================================== */
+    *, *::before, *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    html, body {
+      height: 100%;
+      font-family: var(--font-ui);
+      background-color: var(--paper);
+      color: var(--ink);
+      font-size: 15px;
+      line-height: 1.5;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+    }
+
+    button, input, textarea, select {
+      font: inherit;
+      color: inherit;
+    }
+
+    button {
+      cursor: pointer;
+      border: none;
+      background: none;
+    }
+
+    a {
+      color: var(--primary);
+      text-decoration: none;
+    }
+    a:hover {
+      text-decoration: underline;
+    }
+
+    :focus-visible {
+      outline: 3px solid var(--focus);
+      outline-offset: 2px;
+    }
+
+    /* ==========================================================================
+       APP SHELL: SIDEBAR + MAIN AREA
+       ========================================================================== */
+    .app-layout {
+      display: flex;
+      min-height: 100vh;
+      width: 100%;
+    }
+
+    /* LEFT SIDEBAR (Navy #0B1530) */
+    .sidebar {
+      width: var(--sidebar-width);
+      background-color: var(--navy-sidebar);
+      color: var(--navy-text);
+      display: flex;
+      flex-direction: column;
+      flex-shrink: 0;
+      position: sticky;
+      top: 0;
+      height: 100vh;
+      border-right: 1px solid rgba(255, 255, 255, 0.08);
+      transition: width 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+      z-index: 100;
+      user-select: none;
+    }
+
+    .sidebar.collapsed {
+      width: var(--sidebar-collapsed);
+    }
+
+    .sidebar-header {
+      padding: var(--space-4);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      height: 64px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    .brand-wrap {
+      display: flex;
+      align-items: center;
+      gap: var(--space-3);
+      overflow: hidden;
+      white-space: nowrap;
+    }
+
+    .brand-icon {
+      width: 32px;
+      height: 32px;
+      border-radius: var(--radius-md);
+      background: linear-gradient(135deg, #2B3A9E, #4338CA);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #FFFFFF;
+      flex-shrink: 0;
+    }
+
+    .brand-title {
+      font-size: 15px;
+      font-weight: 700;
+      color: #FFFFFF;
+      letter-spacing: -0.2px;
+    }
+
+    .brand-badge {
+      font-size: 10px;
+      background: rgba(255, 255, 255, 0.12);
+      color: #CBD5E1;
+      padding: 1px 6px;
+      border-radius: 4px;
+      margin-left: 4px;
+      font-weight: 600;
+      text-transform: uppercase;
+    }
+
+    .sidebar-collapse-btn {
+      color: var(--navy-text);
+      width: 28px;
+      height: 28px;
+      border-radius: var(--radius-sm);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: background 0.15s, color 0.15s;
+    }
+    .sidebar-collapse-btn:hover {
+      background: var(--navy-hover);
+      color: var(--navy-text-hi);
+    }
+
+    .sidebar-nav {
+      flex: 1;
+      padding: var(--space-3) var(--space-2);
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      overflow-y: auto;
+    }
+
+    .nav-item {
+      display: flex;
+      align-items: center;
+      gap: var(--space-3);
+      padding: 10px var(--space-3);
+      border-radius: var(--radius-md);
+      color: var(--navy-text);
+      text-decoration: none;
+      font-size: 13.5px;
+      font-weight: 500;
+      transition: background 0.15s, color 0.15s;
+      white-space: nowrap;
+      overflow: hidden;
+    }
+
+    .nav-item:hover {
+      background-color: var(--navy-hover);
+      color: var(--navy-text-hi);
+      text-decoration: none;
+    }
+
+    .nav-item.active {
+      background-color: var(--navy-active);
+      color: #FFFFFF;
+      font-weight: 600;
+    }
+
+    .nav-icon {
+      width: 20px;
+      height: 20px;
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .nav-num {
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      background: rgba(255, 255, 255, 0.1);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 10px;
+      font-weight: 700;
+      margin-right: 4px;
+      flex-shrink: 0;
+    }
+    .nav-item.active .nav-num {
+      background: #3B82F6;
+      color: #FFFFFF;
+    }
+
+    .sidebar.collapsed .nav-text,
+    .sidebar.collapsed .brand-title,
+    .sidebar.collapsed .brand-badge,
+    .sidebar.collapsed .sidebar-footer-text {
+      display: none;
+    }
+
+    .sidebar.collapsed .sidebar-header {
+      justify-content: center;
+      padding: var(--space-4) 0;
+    }
+    .sidebar.collapsed .sidebar-collapse-btn {
+      position: absolute;
+      bottom: 12px;
+      left: calc(50% - 14px);
+    }
+
+    .sidebar-footer {
+      padding: var(--space-4);
+      border-top: 1px solid rgba(255, 255, 255, 0.08);
+      font-size: 11px;
+      color: #64748B;
+      line-height: 1.4;
+    }
+
+    /* MAIN VIEW */
+    .main-wrapper {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
+      height: 100vh;
+      overflow-y: auto;
+    }
+
+    /* HEADER */
+    .top-header {
+      background: var(--surface);
+      border-bottom: 1px solid var(--line);
+      height: 64px;
+      padding: 0 var(--space-6);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      position: sticky;
+      top: 0;
+      z-index: 50;
+    }
+
+    .header-left {
+      display: flex;
+      align-items: center;
+      gap: var(--space-4);
+    }
+
+    .mobile-menu-toggle {
+      display: none;
+      width: 36px;
+      height: 36px;
+      border-radius: var(--radius-sm);
+      color: var(--ink-2);
+      align-items: center;
+      justify-content: center;
+      background: var(--surface-alt);
+    }
+
+    .page-heading {
+      font-size: 20px;
+      font-weight: 700;
+      color: var(--ink);
+      letter-spacing: -0.3px;
+      display: flex;
+      align-items: center;
+      gap: var(--space-2);
+    }
+
+    .page-subtext {
+      font-size: 12px;
+      color: var(--ink-3);
+      font-weight: 400;
+      margin-left: var(--space-2);
+    }
+
+    .header-right {
+      display: flex;
+      align-items: center;
+      gap: var(--space-3);
+    }
+
+    /* TRUST BADGE */
+    .trust-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background-color: var(--needed-bg);
+      color: var(--needed);
+      font-size: 12px;
+      font-weight: 600;
+      padding: 6px 12px;
+      border-radius: var(--radius-full);
+      border: 1px solid rgba(15, 122, 79, 0.2);
+      cursor: pointer;
+      position: relative;
+      transition: background 0.15s;
+    }
+    .trust-badge:hover {
+      background-color: #d1edd9;
+    }
+
+    .trust-popover {
+      display: none;
+      position: absolute;
+      top: calc(100% + 8px);
+      right: 0;
+      width: 290px;
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: var(--radius-md);
+      box-shadow: var(--shadow-popover);
+      padding: var(--space-4);
+      color: var(--ink-2);
+      font-size: 12.5px;
+      font-weight: 400;
+      line-height: 1.5;
+      z-index: 200;
+    }
+    .trust-popover.show {
+      display: block;
+    }
+    .trust-popover-title {
+      font-weight: 700;
+      color: var(--ink);
+      margin-bottom: var(--space-1);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    /* ==========================================================================
+       MAIN CONTENT: 6 PANELS GRID
+       ========================================================================== */
+    .content-container {
+      padding: var(--space-6);
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-6);
+      max-width: 1560px;
+      width: 100%;
+      margin: 0 auto;
+    }
+
+    /* GRID ROWS */
+    .panels-row {
+      display: grid;
+      gap: var(--space-6);
+      align-items: start;
+    }
+
+    /* ROW 1: Panel 1 (Input, 370px), Panel 2 (Results, 1fr), Panel 3 (Score, 330px) */
+    .row-1 {
+      grid-template-columns: 370px 1fr 330px;
+    }
+
+    /* ROW 2: Panel 4 (Categories, 1fr), Panel 5 (Notice, 1.4fr), Panel 6 (Actions, 330px) */
+    .row-2 {
+      grid-template-columns: 1fr 1.4fr 330px;
+    }
+
+    /* CARD / PANEL BASE */
+    .panel {
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: var(--radius-lg);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      box-shadow: var(--shadow-subtle);
+      transition: border-color 0.2s;
+    }
+    .panel:focus-within {
+      border-color: var(--line-strong);
+    }
+
+    .panel-header {
+      padding: var(--space-4) var(--space-6);
+      border-bottom: 1px solid var(--line);
+      background: var(--surface);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      min-height: 52px;
+    }
+
+    .panel-title-wrap {
+      display: flex;
+      align-items: center;
+      gap: var(--space-2);
+    }
+
+    .panel-title {
+      font-size: 15px;
+      font-weight: 700;
+      color: var(--ink);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .panel-badge {
+      font-size: 11px;
+      font-weight: 600;
+      padding: 2px 8px;
+      border-radius: var(--radius-full);
+      background: var(--surface-alt);
+      color: var(--ink-3);
+    }
+
+    .panel-body {
+      padding: var(--space-6);
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-4);
+    }
+
+    /* ==========================================================================
+       PANEL 1: PROVIDE INPUT
+       ========================================================================== */
+    /* Mode switcher */
+    .segmented-control {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      background: var(--surface-alt);
+      padding: 3px;
+      border-radius: var(--radius-md);
+      border: 1px solid var(--line);
+    }
+
+    .segment-btn {
+      padding: 7px var(--space-3);
+      font-size: 12.5px;
+      font-weight: 600;
+      border-radius: 6px;
+      color: var(--ink-2);
+      text-align: center;
+      transition: background 0.15s, color 0.15s, box-shadow 0.15s;
+    }
+    .segment-btn.active {
+      background: var(--surface);
+      color: var(--ink);
+      box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+    }
+
+    .form-group {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .input-label {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--ink);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .input-hint {
+      font-size: 11.5px;
+      font-weight: 400;
+      color: var(--ink-3);
+    }
+
+    .text-input {
+      width: 100%;
+      height: 40px;
+      padding: 0 var(--space-3);
+      border-radius: var(--radius-md);
+      border: 1px solid var(--line-strong);
+      background: var(--surface);
+      color: var(--ink);
+      font-size: 13.5px;
+      transition: border-color 0.15s, box-shadow 0.15s;
+    }
+    .text-input:focus {
+      border-color: var(--focus);
+    }
+
+    /* Quick Pick Chips */
+    .chips-label {
+      font-size: 11.5px;
+      font-weight: 500;
+      color: var(--ink-3);
+      margin-top: 2px;
+    }
+
+    .chips-wrapper {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+
+    .quick-chip {
+      font-size: 11.5px;
+      font-weight: 500;
+      padding: 4px 10px;
+      border-radius: var(--radius-full);
+      background: var(--surface-alt);
+      color: var(--ink-2);
+      border: 1px solid var(--line);
+      transition: all 0.15s;
+      white-space: nowrap;
+    }
+    .quick-chip:hover {
+      background: var(--primary-tint);
+      color: var(--primary);
+      border-color: #B4C2F0;
+    }
+    .quick-chip.active {
+      background: var(--primary);
+      color: #FFFFFF;
+      border-color: var(--primary);
+    }
+
+    /* Textarea */
+    .code-textarea {
+      width: 100%;
+      min-height: 200px;
+      max-height: 380px;
+      padding: var(--space-3);
+      border-radius: var(--radius-md);
+      border: 1px solid var(--line-strong);
+      background: #FAFBFC;
+      color: var(--ink);
+      font-family: var(--font-mono);
+      font-size: 12.5px;
+      line-height: 1.5;
+      resize: vertical;
+      white-space: pre;
+    }
+    .code-textarea:focus {
+      border-color: var(--focus);
+      background: #FFFFFF;
+    }
+
+    .input-actions {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-2);
+      margin-top: var(--space-2);
+    }
+
+    .btn-primary {
+      height: 44px;
+      border-radius: var(--radius-md);
+      background: var(--primary);
+      color: #FFFFFF;
+      font-size: 14px;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: var(--space-2);
+      transition: background 0.15s;
+    }
+    .btn-primary:hover {
+      background: var(--primary-hover);
+    }
+
+    .btn-sub-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: var(--space-2);
+    }
+
+    .btn-secondary {
+      height: 34px;
+      padding: 0 var(--space-3);
+      border-radius: var(--radius-md);
+      background: var(--surface-alt);
+      color: var(--ink-2);
+      border: 1px solid var(--line);
+      font-size: 12px;
+      font-weight: 600;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      transition: background 0.15s, color 0.15s;
+    }
+    .btn-secondary:hover {
+      background: #E2E8F0;
+      color: var(--ink);
+    }
+
+    .sample-link-btn {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--primary);
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 4px 8px;
+      border-radius: 4px;
+    }
+    .sample-link-btn:hover {
+      background: var(--primary-tint);
+    }
+
+    .input-error-msg {
+      display: none;
+      font-size: 12px;
+      color: var(--excess);
+      background: var(--excess-bg);
+      padding: 8px 12px;
+      border-radius: var(--radius-md);
+      border: 1px solid rgba(179, 38, 30, 0.2);
+      margin-top: 4px;
+    }
+    .input-error-msg.show {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    /* Out of date indicator */
+    .out-of-date-badge {
+      display: none;
+      font-size: 11px;
+      background: var(--review-bg);
+      color: var(--review);
+      padding: 2px 8px;
+      border-radius: var(--radius-full);
+      font-weight: 600;
+    }
+    .out-of-date-badge.show {
+      display: inline-block;
+    }
+
+    /* ==========================================================================
+       PANEL 2: ANALYSIS RESULTS
+       ========================================================================== */
+    /* Summary filter tiles */
+    .summary-tiles-strip {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: var(--space-2);
+      margin-bottom: var(--space-2);
+    }
+
+    .summary-tile {
+      background: var(--surface-alt);
+      border: 1px solid var(--line);
+      border-radius: var(--radius-md);
+      padding: 10px 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .summary-tile:hover {
+      border-color: var(--line-strong);
+      background: #E8EEF5;
+    }
+    .summary-tile.active {
+      border-color: var(--primary);
+      background: #FFFFFF;
+      box-shadow: 0 0 0 1px var(--primary);
+    }
+
+    .tile-label {
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--ink-3);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .tile-value {
+      font-size: 20px;
+      font-weight: 700;
+      color: var(--ink);
+      font-variant-numeric: tabular-nums;
+    }
+
+    .tile-personal .tile-value { color: #4B2E91; }
+    .tile-nonpersonal .tile-value { color: var(--neutral); }
+    .tile-necessary .tile-value { color: var(--needed); }
+    .tile-unnecessary .tile-value { color: var(--excess); }
+
+    /* Form-level alerts */
+    .form-alerts-box {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .compliance-alert {
+      padding: 10px 14px;
+      border-radius: var(--radius-md);
+      font-size: 12.5px;
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      line-height: 1.4;
+    }
+
+    .compliance-alert.alert-danger {
+      background: var(--excess-bg);
+      border: 1px solid rgba(179, 38, 30, 0.25);
+      color: #791914;
+    }
+
+    .compliance-alert.alert-warning {
+      background: var(--review-bg);
+      border: 1px solid rgba(138, 83, 0, 0.25);
+      color: #633B00;
+    }
+
+    .alert-icon {
+      flex-shrink: 0;
+      margin-top: 1px;
+    }
+
+    .alert-title {
+      font-weight: 700;
+      margin-bottom: 2px;
+    }
+
+    /* Table */
+    .table-responsive {
+      width: 100%;
+      overflow-x: auto;
+      border: 1px solid var(--line);
+      border-radius: var(--radius-md);
+      background: var(--surface);
+    }
+
+    .results-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+      text-align: left;
+    }
+
+    .results-table th {
+      background: var(--surface-alt);
+      color: var(--ink-2);
+      font-weight: 600;
+      font-size: 12px;
+      padding: 10px 14px;
+      border-bottom: 1px solid var(--line);
+      white-space: nowrap;
+    }
+
+    .results-table td {
+      padding: 12px 14px;
+      border-bottom: 1px solid var(--line);
+      vertical-align: middle;
+    }
+
+    .results-table tr:last-child td {
+      border-bottom: none;
+    }
+
+    .results-table tr:hover td {
+      background: rgba(246, 248, 251, 0.7);
+    }
+
+    /* Redline Treatment (Signature UI) */
+    .row-excess {
+      background-color: rgba(252, 233, 231, 0.45);
+      border-left: 3px solid var(--excess) !important;
+    }
+    .row-excess td:first-child {
+      border-left: 3px solid var(--excess);
+    }
+
+    .row-review {
+      border-left: 3px solid var(--review) !important;
+    }
+    .row-review td:first-child {
+      border-left: 3px solid var(--review);
+    }
+
+    .field-name-mono {
+      font-family: var(--font-mono);
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--ink);
+    }
+
+    /* Redline Wavy Underline */
+    .row-excess .field-name-mono {
+      text-decoration: underline wavy var(--excess);
+      text-underline-offset: 4px;
+      color: #8C1D18;
+    }
+
+    .field-label-sub {
+      font-size: 11px;
+      color: var(--ink-3);
+      margin-top: 2px;
+    }
+
+    /* Badges */
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 3px 8px;
+      border-radius: var(--radius-full);
+      font-size: 11.5px;
+      font-weight: 600;
+      white-space: nowrap;
+    }
+
+    .badge-needed { background: var(--needed-bg); color: var(--needed); }
+    .badge-excess { background: var(--excess-bg); color: var(--excess); }
+    .badge-review { background: var(--review-bg); color: var(--review); }
+    .badge-neutral { background: var(--neutral-bg); color: var(--neutral); }
+
+    .badge-sensitive {
+      background: #FDE8D8;
+      color: #9A3412;
+      font-size: 10px;
+      padding: 1px 6px;
+      margin-left: 4px;
+      border-radius: 4px;
+    }
+
+    .category-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 3px 8px;
+      border-radius: var(--radius-full);
+      font-size: 11.5px;
+      font-weight: 500;
+      white-space: nowrap;
+    }
+
+    .cat-identity { background: #EFE9FB; color: #4B2E91; }
+    .cat-contact { background: #E0F2F8; color: #0B5F7A; }
+    .cat-location { background: #EAF3D9; color: #3F6212; }
+    .cat-financial { background: #FBEBD3; color: #7A3B00; }
+    .cat-health { background: #FCE7F0; color: #9D174D; }
+    .cat-govtid { background: #FBE9DF; color: #8A2D0B; }
+    .cat-demographic { background: #E3EDFA; color: #1E4E8C; }
+    .cat-children { background: #FDE8D8; color: #9A3412; }
+    .cat-credentials { background: #E9ECF1; color: #374151; }
+    .cat-technical { background: #EEF1F5; color: #475569; }
+    .cat-nonpersonal { background: #EAEEF4; color: var(--neutral); }
+
+    .reason-text {
+      font-size: 12.5px;
+      color: var(--ink-2);
+      line-height: 1.4;
+    }
+
+    .matched-by-hint {
+      font-size: 11px;
+      color: var(--ink-3);
+      font-family: var(--font-mono);
+      margin-top: 3px;
+    }
+
+    /* Empty state */
+    .table-empty-state {
+      padding: 48px var(--space-6);
+      text-align: center;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: var(--space-3);
+      color: var(--ink-3);
+    }
+    .empty-icon-wrap {
+      width: 48px;
+      height: 48px;
+      border-radius: 50%;
+      background: var(--surface-alt);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--ink-3);
+    }
+
+    /* ==========================================================================
+       PANEL 3: COMPLIANCE SCORE
+       ========================================================================== */
+    .score-container {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: var(--space-3);
+      padding: var(--space-2) 0;
+    }
+
+    /* 160px SVG Ring Gauge */
+    .score-gauge-wrap {
+      position: relative;
+      width: 160px;
+      height: 160px;
+    }
+
+    .gauge-svg {
+      transform: rotate(-90deg);
+      width: 160px;
+      height: 160px;
+    }
+
+    .gauge-bg {
+      fill: none;
+      stroke: var(--surface-alt);
+      stroke-width: 12;
+    }
+
+    .gauge-arc {
+      fill: none;
+      stroke-width: 12;
+      stroke-linecap: round;
+      stroke-dasharray: 440;
+      stroke-dashoffset: 440;
+      transition: stroke-dashoffset 0.6s ease-out, stroke 0.3s;
+    }
+
+    .score-center-text {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+    }
+
+    .score-number {
+      font-size: 38px;
+      font-weight: 700;
+      line-height: 1;
+      font-variant-numeric: tabular-nums;
+      color: var(--ink);
+    }
+
+    .score-max-text {
+      font-size: 12px;
+      color: var(--ink-3);
+      font-weight: 500;
+    }
+
+    .score-band-pill {
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      padding: 2px 10px;
+      border-radius: var(--radius-full);
+      margin-top: 4px;
+    }
+
+    .band-strong { background: var(--needed-bg); color: var(--score-strong); }
+    .band-fair { background: #E0EDFB; color: var(--score-fair); }
+    .band-weak { background: var(--review-bg); color: var(--score-weak); }
+    .band-poor { background: var(--excess-bg); color: var(--score-poor); }
+
+    .score-status-sentence {
+      font-size: 13px;
+      color: var(--ink-2);
+      text-align: center;
+      line-height: 1.4;
+      font-weight: 500;
+    }
+
+    .minimisation-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: var(--surface-alt);
+      padding: 6px 12px;
+      border-radius: var(--radius-full);
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--ink-2);
+    }
+
+    /* Score calculation breakdown */
+    .calculation-details {
+      width: 100%;
+      background: var(--surface-alt);
+      border-radius: var(--radius-md);
+      padding: var(--space-3) var(--space-4);
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      font-size: 12px;
+    }
+
+    .calc-title {
+      font-weight: 700;
+      color: var(--ink);
+      font-size: 12.5px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .calc-list {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+      max-height: 160px;
+      overflow-y: auto;
+    }
+
+    .calc-item {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 8px;
+      color: var(--ink-2);
+      line-height: 1.35;
+    }
+
+    .calc-pts {
+      font-weight: 700;
+      font-family: var(--font-mono);
+      flex-shrink: 0;
+    }
+    .pts-negative { color: var(--excess); }
+    .pts-positive { color: var(--needed); }
+
+    .score-footnote {
+      font-size: 11px;
+      color: var(--ink-3);
+      text-align: center;
+      line-height: 1.3;
+    }
+
+    /* ==========================================================================
+       PANEL 4: DATA CATEGORIES
+       ========================================================================== */
+    .categories-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+      gap: 10px;
+    }
+
+    .category-card {
+      background: var(--surface-alt);
+      border: 1px solid var(--line);
+      border-radius: var(--radius-md);
+      padding: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .category-card:hover {
+      border-color: var(--line-strong);
+      transform: translateY(-1px);
+    }
+    .category-card.active {
+      border-color: var(--primary);
+      box-shadow: 0 0 0 1px var(--primary);
+      background: #FFFFFF;
+    }
+
+    .cat-card-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .cat-card-title {
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--ink);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .cat-count {
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--ink);
+    }
+
+    .cat-field-tags {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 4px;
+      margin-top: 4px;
+    }
+
+    .cat-mini-tag {
+      font-size: 10px;
+      font-family: var(--font-mono);
+      background: rgba(255, 255, 255, 0.7);
+      padding: 1px 4px;
+      border-radius: 3px;
+      color: var(--ink-2);
+      border: 1px solid var(--line);
+    }
+
+    /* ==========================================================================
+       PANEL 5: DRAFT CONSENT NOTICE
+       ========================================================================== */
+    .notice-header-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: var(--space-2);
+    }
+
+    /* Language segmented control */
+    .lang-tabs {
+      display: flex;
+      background: var(--surface-alt);
+      border: 1px solid var(--line);
+      border-radius: var(--radius-md);
+      padding: 2px;
+    }
+
+    .lang-btn {
+      padding: 5px 12px;
+      font-size: 12px;
+      font-weight: 600;
+      border-radius: 5px;
+      color: var(--ink-2);
+      transition: all 0.15s;
+    }
+    .lang-btn.active {
+      background: var(--surface);
+      color: var(--primary);
+      box-shadow: 0 1px 2px rgba(0,0,0,0.06);
+    }
+
+    .notice-draft-banner {
+      background: var(--review-bg);
+      border: 1px solid rgba(138, 83, 0, 0.25);
+      border-radius: var(--radius-md);
+      padding: 8px 12px;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--review);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .notice-card {
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: var(--radius-md);
+      padding: var(--space-6);
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-4);
+      line-height: 1.6;
+    }
+
+    .notice-card:lang(hi), .notice-card:lang(mr) {
+      line-height: 1.75;
+    }
+
+    .notice-section-title {
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--ink);
+      margin-bottom: 4px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .notice-bullets {
+      padding-left: 20px;
+      font-size: 13.5px;
+      color: var(--ink-2);
+    }
+
+    .notice-placeholder {
+      background: var(--review-bg);
+      color: #633B00;
+      border: 1px dashed #D4A359;
+      padding: 1px 6px;
+      border-radius: 4px;
+      font-weight: 600;
+      cursor: text;
+    }
+
+    .notice-excess-omitted-note {
+      font-size: 11.5px;
+      color: var(--ink-3);
+      font-style: italic;
+      background: var(--surface-alt);
+      padding: 6px 10px;
+      border-radius: var(--radius-sm);
+      border-left: 3px solid var(--excess);
+    }
+
+    /* ==========================================================================
+       PANEL 6: ACTIONS & EXPORT
+       ========================================================================== */
+    .actions-stack {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .action-btn-large {
+      height: 64px;
+      background: var(--surface-alt);
+      border: 1px solid var(--line);
+      border-radius: var(--radius-md);
+      padding: 0 var(--space-4);
+      display: flex;
+      align-items: center;
+      gap: var(--space-4);
+      text-align: left;
+      transition: all 0.15s;
+    }
+    .action-btn-large:hover {
+      background: #FFFFFF;
+      border-color: var(--primary);
+      transform: translateY(-1px);
+      box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+    }
+
+    .action-btn-primary {
+      background: var(--primary-tint);
+      border-color: #C5CEF2;
+    }
+    .action-btn-primary:hover {
+      background: #DCE3F8;
+      border-color: var(--primary);
+    }
+
+    .action-icon-circle {
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      background: var(--surface);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--primary);
+      flex-shrink: 0;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+    }
+
+    .action-text-wrap {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    .action-label {
+      font-size: 13.5px;
+      font-weight: 700;
+      color: var(--ink);
+    }
+
+    .action-sub {
+      font-size: 11.5px;
+      color: var(--ink-3);
+    }
+
+    /* Privacy Card */
+    .privacy-assurance-card {
+      background: #F0FDF4;
+      border: 1px solid #BBF7D0;
+      border-radius: var(--radius-md);
+      padding: var(--space-4);
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      font-size: 12px;
+      color: #166534;
+      margin-top: 4px;
+    }
+    .privacy-title {
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      color: #14532D;
+    }
+
+    /* TOAST NOTIFICATION */
+    .toast {
+      position: fixed;
+      bottom: 24px;
+      right: 24px;
+      background: #14213D;
+      color: #FFFFFF;
+      padding: 10px 18px;
+      border-radius: var(--radius-md);
+      font-size: 13px;
+      font-weight: 500;
+      display: none;
+      align-items: center;
+      gap: 8px;
+      box-shadow: 0 6px 20px rgba(0,0,0,0.25);
+      z-index: 999;
+      animation: fadeIn 0.15s ease-out;
+    }
+    .toast.show {
+      display: flex;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(8px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    /* FOOTER */
+    .app-footer {
+      padding: var(--space-6);
+      text-align: center;
+      font-size: 12px;
+      color: var(--ink-3);
+      border-top: 1px solid var(--line);
+      background: var(--surface);
+      margin-top: auto;
+    }
+
+    /* ==========================================================================
+       RESPONSIVENESS (1440, 1024, 768, 640, 375)
+       ========================================================================== */
+    @media (max-width: 1400px) {
+      .row-1 {
+        grid-template-columns: 350px 1fr 310px;
+      }
+      .row-2 {
+        grid-template-columns: 1fr 1.2fr 310px;
+      }
+    }
+
+    @media (max-width: 1200px) {
+      .row-1 {
+        grid-template-columns: 360px 1fr;
+      }
+      .panel-score-card {
+        grid-column: 1 / -1;
+      }
+      .row-2 {
+        grid-template-columns: 1fr 1fr;
+      }
+      .panel-actions-card {
+        grid-column: 1 / -1;
+      }
+    }
+
+    @media (max-width: 1023px) {
+      .sidebar {
+        position: fixed;
+        left: -260px;
+        transition: left 0.25s ease-in-out;
+      }
+      .sidebar.mobile-open {
+        left: 0;
+      }
+      .mobile-menu-toggle {
+        display: flex;
+      }
+      .row-1, .row-2 {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    @media (max-width: 640px) {
+      .content-container {
+        padding: var(--space-4);
+      }
+      .summary-tiles-strip {
+        grid-template-columns: 1fr 1fr;
+      }
+      .top-header {
+        padding: 0 var(--space-4);
+      }
+      .page-subtext {
+        display: none;
+      }
+      /* Collapse table to cards */
+      .results-table, .results-table tbody, .results-table tr, .results-table td {
+        display: block;
+        width: 100%;
+      }
+      .results-table thead {
+        display: none;
+      }
+      .results-table tr {
+        margin-bottom: var(--space-3);
+        border: 1px solid var(--line);
+        border-radius: var(--radius-md);
+        background: var(--surface);
+      }
+      .results-table td {
+        padding: 8px 12px;
+        border-bottom: 1px solid var(--surface-alt);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+      }
+      .results-table td::before {
+        content: attr(data-label);
+        font-weight: 600;
+        font-size: 11px;
+        color: var(--ink-3);
+      }
+    }
+
+    /* ==========================================================================
+       PRINT STYLESHEET (@media print)
+       ========================================================================== */
+    @media print {
+      body {
+        background: #FFFFFF !important;
+        color: #000000 !important;
+        font-size: 11pt;
+      }
+      .sidebar, .top-header, .panel-input-card, .panel-actions-card, .toast, .segmented-control, .chips-wrapper, .sample-link-btn, .lang-tabs {
+        display: none !important;
+      }
+      .main-wrapper {
+        height: auto !important;
+        overflow: visible !important;
+      }
+      .content-container {
+        padding: 0 !important;
+        gap: 16pt !important;
+      }
+      .row-1, .row-2 {
+        display: block !important;
+      }
+      .panel {
+        box-shadow: none !important;
+        border: 1px solid #CCCCCC !important;
+        margin-bottom: 20pt !important;
+        page-break-inside: avoid;
+      }
+      .field-name-mono {
+        color: #000000 !important;
+        text-decoration: none !important;
+      }
+      .row-excess {
+        background-color: #F8F8F8 !important;
+        border-left: 3pt solid #000000 !important;
+      }
+      .print-header {
+        display: block !important;
+        margin-bottom: 20pt;
+        border-bottom: 2pt solid #000000;
+        padding-bottom: 10pt;
+      }
+      .print-header h1 {
+        font-size: 18pt;
+      }
+      .print-header p {
+        font-size: 10pt;
+        color: #444444;
+      }
+    }
+
+    .print-header {
+      display: none;
+    }
+  </style>
+</head>
+<body>
+
+<div class="app-layout">
+
+  <!-- LEFT SIDEBAR (Navy #0B1530) -->
+  <aside class="sidebar" id="sidebar" aria-label="Main Navigation">
+    <div class="sidebar-header">
+      <div class="brand-wrap">
+        <div class="brand-icon" aria-hidden="true">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+            <path d="m9 12 2 2 4-4"/>
+          </svg>
+        </div>
+        <span class="brand-title">DPDP Auditor</span>
+        <span class="brand-badge">2023</span>
+      </div>
+      <button class="sidebar-collapse-btn" id="collapseBtn" title="Collapse sidebar" aria-label="Toggle navigation bar">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="m15 18-6-6 6-6"/>
+        </svg>
+      </button>
+    </div>
+
+    <nav class="sidebar-nav">
+      <a href="#panel-input" class="nav-item active" data-nav="input">
+        <span class="nav-num">1</span>
+        <span class="nav-icon" aria-hidden="true">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+        </span>
+        <span class="nav-text">Provide input</span>
+      </a>
+
+      <a href="#panel-results" class="nav-item" data-nav="results">
+        <span class="nav-num">2</span>
+        <span class="nav-icon" aria-hidden="true">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3h18v18H3z"/><path d="M3 9h18"/><path d="M9 21V9"/></svg>
+        </span>
+        <span class="nav-text">Analysis results</span>
+      </a>
+
+      <a href="#panel-score" class="nav-item" data-nav="score">
+        <span class="nav-num">3</span>
+        <span class="nav-icon" aria-hidden="true">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/></svg>
+        </span>
+        <span class="nav-text">Compliance score</span>
+      </a>
+
+      <a href="#panel-categories" class="nav-item" data-nav="categories">
+        <span class="nav-num">4</span>
+        <span class="nav-icon" aria-hidden="true">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>
+        </span>
+        <span class="nav-text">Data categories</span>
+      </a>
+
+      <a href="#panel-notice" class="nav-item" data-nav="notice">
+        <span class="nav-num">5</span>
+        <span class="nav-icon" aria-hidden="true">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+        </span>
+        <span class="nav-text">Consent notice</span>
+      </a>
+
+      <a href="#panel-actions" class="nav-item" data-nav="actions">
+        <span class="nav-num">6</span>
+        <span class="nav-icon" aria-hidden="true">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        </span>
+        <span class="nav-text">Export & Actions</span>
+      </a>
+    </nav>
+
+    <div class="sidebar-footer">
+      <div class="sidebar-footer-text">
+        DPDP Act 2023 · Sec 5 & 6<br>
+        Zero network dependencies
+      </div>
+    </div>
+  </aside>
+
+  <!-- MAIN VIEW -->
+  <main class="main-wrapper" id="mainWrapper">
+    <!-- TOP HEADER -->
+    <header class="top-header">
+      <div class="header-left">
+        <button class="mobile-menu-toggle" id="mobileMenuBtn" aria-label="Open navigation menu">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+        </button>
+        <h1 class="page-heading">
+          Audit a form
+          <span class="page-subtext">DPDP Act 2023 Personal Data Minimisation Engine</span>
+        </h1>
+      </div>
+
+      <div class="header-right">
+        <!-- TRUST BADGE -->
+        <div class="trust-badge" id="trustBadge" tabindex="0" role="button" aria-haspopup="true" aria-expanded="false" title="Click to see privacy details">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+          <span>100% private · Runs entirely in your browser</span>
+          <div class="trust-popover" id="trustPopover" role="tooltip">
+            <div class="trust-popover-title">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+              Client-Side Local Execution
+            </div>
+            Zero network requests. All HTML parsing via DOMParser inert documents, field tokenization, qualifier rules, and DPDP assessments occur entirely inside your browser JavaScript engine. No cookies or server logging.
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <!-- PRINT HEADER -->
+    <div class="print-header">
+      <h1>DPDP Form Compliance Audit Report</h1>
+      <p id="printMetaLine">Generated locally via DPDP Form Auditor · Stated Purpose: Newsletter signup</p>
+    </div>
+
+    <!-- MAIN CONTENT AREA (6 PANELS IN 2 ROWS) -->
+    <div class="content-container">
+
+      <!-- ==========================================
+           ROW 1:
+           Panel 1: Provide Input (370px)
+           Panel 2: Analysis Results (Fluid)
+           Panel 3: Compliance Score (330px)
+           ========================================== -->
+      <section class="panels-row row-1" aria-label="Auditor primary workflow">
+
+        <!-- PANEL 1: PROVIDE INPUT -->
+        <div class="panel panel-input-card" id="panel-input">
+          <div class="panel-header">
+            <div class="panel-title-wrap">
+              <span class="panel-title">1. Provide input</span>
+            </div>
+            <span class="out-of-date-badge" id="outOfDateBadge">Out of date</span>
+          </div>
+
+          <div class="panel-body">
+            <!-- Mode switcher -->
+            <div class="segmented-control" role="tablist" aria-label="Input Mode">
+              <button class="segment-btn active" id="btnModeHtml" role="tab" aria-selected="true">Paste HTML</button>
+              <button class="segment-btn" id="btnModeList" role="tab" aria-selected="false">Enter field list</button>
+            </div>
+
+            <!-- Purpose input -->
+            <div class="form-group">
+              <label class="input-label" for="purposeInput">
+                What is this form for?
+                <span class="input-hint">Required for minimisation</span>
+              </label>
+              <input type="text" id="purposeInput" class="text-input" placeholder="e.g. newsletter signup, contact us" value="Newsletter signup">
+
+              <!-- Quick chips -->
+              <span class="chips-label">Quick-pick purposes:</span>
+              <div class="chips-wrapper" id="purposeChips">
+                <button type="button" class="quick-chip active" data-purpose="Newsletter signup">Newsletter</button>
+                <button type="button" class="quick-chip" data-purpose="Contact us">Contact us</button>
+                <button type="button" class="quick-chip" data-purpose="Job application">Job application</button>
+                <button type="button" class="quick-chip" data-purpose="E-commerce checkout">Checkout</button>
+                <button type="button" class="quick-chip" data-purpose="Account registration">Sign up</button>
+                <button type="button" class="quick-chip" data-purpose="Event registration">Event</button>
+                <button type="button" class="quick-chip" data-purpose="Feedback survey">Feedback</button>
+              </div>
+            </div>
+
+            <!-- Code / field names textarea -->
+            <div class="form-group">
+              <label class="input-label" for="formCodeInput" id="textareaLabel">
+                Form HTML markup
+                <span class="input-hint" id="textareaHint">Inert DOMParser parsing</span>
+              </label>
+              <textarea id="formCodeInput" class="code-textarea" spellcheck="false" placeholder="<form>&#10;  <input name=&quot;usr_nm&quot; type=&quot;text&quot;>&#10;  <input name=&quot;mob_no&quot; type=&quot;tel&quot;>&#10;  ...&#10;</form>"></textarea>
+              <div class="input-error-msg" id="inputErrorMsg" role="alert"></div>
+            </div>
+
+            <!-- Action buttons -->
+            <div class="input-actions">
+              <button class="btn-primary" id="btnAnalyze">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+                Analyze form
+              </button>
+
+              <div class="btn-sub-row">
+                <button class="sample-link-btn" id="btnLoadSample" type="button" title="Load judge test form with messy names">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                  Load sample messy form
+                </button>
+                <button class="btn-secondary" id="btnClear" type="button">Clear</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- PANEL 2: ANALYSIS RESULTS -->
+        <div class="panel panel-results-card" id="panel-results">
+          <div class="panel-header">
+            <div class="panel-title-wrap">
+              <span class="panel-title">2. Analysis results</span>
+              <span class="panel-badge" id="fieldsFoundBadge">0 fields</span>
+            </div>
+            <div style="font-size: 11px; color: var(--ink-3);" id="profileHintLabel">Profile: Newsletter</div>
+          </div>
+
+          <div class="panel-body">
+            <!-- Summary filter tiles -->
+            <div class="summary-tiles-strip" role="group" aria-label="Filter results">
+              <div class="summary-tile tile-personal" data-filter="personal" tabindex="0" role="button" title="Click to filter by personal data">
+                <span class="tile-label">Personal data</span>
+                <span class="tile-value" id="countPersonal">0</span>
+              </div>
+              <div class="summary-tile tile-nonpersonal" data-filter="nonpersonal" tabindex="0" role="button" title="Click to filter by non-personal data">
+                <span class="tile-label">Non-personal</span>
+                <span class="tile-value" id="countNonPersonal">0</span>
+              </div>
+              <div class="summary-tile tile-necessary" data-filter="necessary" tabindex="0" role="button" title="Click to filter by necessary fields">
+                <span class="tile-label">Necessary</span>
+                <span class="tile-value" id="countNecessary">0</span>
+              </div>
+              <div class="summary-tile tile-unnecessary" data-filter="unnecessary" tabindex="0" role="button" title="Click to filter by excess fields">
+                <span class="tile-label">Unnecessary</span>
+                <span class="tile-value" id="countUnnecessary">0</span>
+              </div>
+            </div>
+
+            <!-- Form-level compliance alerts -->
+            <div class="form-alerts-box" id="formAlertsContainer"></div>
+
+            <!-- Table of fields -->
+            <div class="table-responsive">
+              <table class="results-table" id="resultsTable" aria-label="Fields analysis table">
+                <thead>
+                  <tr>
+                    <th scope="col" style="width: 24%;">Field</th>
+                    <th scope="col" style="width: 20%;">Category</th>
+                    <th scope="col" style="width: 14%;">Personal?</th>
+                    <th scope="col" style="width: 14%;">Needed?</th>
+                    <th scope="col" style="width: 28%;">Reason</th>
+                  </tr>
+                </thead>
+                <tbody id="resultsTableBody">
+                  <tr>
+                    <td colspan="5">
+                      <div class="table-empty-state">
+                        <div class="empty-icon-wrap">
+                          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+                        </div>
+                        <p style="font-weight: 600; color: var(--ink);">Paste a form to begin analysis</p>
+                        <p style="font-size: 13px; max-width: 400px;">We list every input field, classify it under DPDP data categories, and flag excess items with redline annotations.</p>
+                      </div>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <!-- PANEL 3: COMPLIANCE SCORE -->
+        <div class="panel panel-score-card" id="panel-score">
+          <div class="panel-header">
+            <span class="panel-title">3. Compliance score</span>
+            <span class="panel-badge">0–100 scale</span>
+          </div>
+
+          <div class="panel-body">
+            <div class="score-container">
+              <!-- Circular SVG Ring Gauge (160px) -->
+              <div class="score-gauge-wrap">
+                <svg class="gauge-svg" viewBox="0 0 160 160" aria-hidden="true">
+                  <circle class="gauge-bg" cx="80" cy="80" r="70"></circle>
+                  <circle class="gauge-arc" id="scoreGaugeArc" cx="80" cy="80" r="70"></circle>
+                </svg>
+                <div class="score-center-text">
+                  <span class="score-number" id="scoreNumber">--</span>
+                  <span class="score-max-text">out of 100</span>
+                  <span class="score-band-pill" id="scoreBandPill">Awaiting</span>
+                </div>
+              </div>
+
+              <!-- Status sentence -->
+              <div class="score-status-sentence" id="scoreStatusSentence">
+                Paste form markup and click Analyze to calculate explainable DPDP compliance score.
+              </div>
+
+              <!-- Minimisation Ratio -->
+              <div class="minimisation-pill" id="minimisationPill">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+                <span id="minimisationRatioText">Minimisation ratio: --%</span>
+              </div>
+
+              <!-- How the score is calculated -->
+              <div class="calculation-details">
+                <div class="calc-title">
+                  <span>How score is calculated</span>
+                  <span id="totalDeductionsCount">0 items</span>
+                </div>
+                <ul class="calc-list" id="scoreDeductionsList">
+                  <li class="calc-item"><span style="color: var(--ink-3);">Base score starts at 100 pts</span><span class="calc-pts">100</span></li>
+                </ul>
+              </div>
+
+              <div class="score-footnote">
+                Score reflects Section 6(1) data minimisation & Section 5 notice requirements under India's DPDP Act 2023.
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </section>
+
+      <!-- ==========================================
+           ROW 2:
+           Panel 4: Data Categories (Fluid)
+           Panel 5: Draft Consent Notice (1.4fr)
+           Panel 6: Actions & Export (330px)
+           ========================================== -->
+      <section class="panels-row row-2" aria-label="Auditor secondary workflow and outputs">
+
+        <!-- PANEL 4: DATA CATEGORIES -->
+        <div class="panel panel-categories-card" id="panel-categories">
+          <div class="panel-header">
+            <span class="panel-title">4. Data categories</span>
+            <span class="panel-badge" id="categoryActiveFilterBadge">All categories</span>
+          </div>
+
+          <div class="panel-body">
+            <p style="font-size: 12.5px; color: var(--ink-3);">
+              Field classifications matched via tokenization, noise stripping, and DPDP risk taxonomies:
+            </p>
+
+            <div class="categories-grid" id="categoriesGrid">
+              <!-- Category cards rendered dynamically -->
+            </div>
+          </div>
+        </div>
+
+        <!-- PANEL 5: DRAFT CONSENT NOTICE -->
+        <div class="panel panel-notice-card" id="panel-notice">
+          <div class="panel-header">
+            <div class="panel-title-wrap">
+              <span class="panel-title">5. Draft consent notice</span>
+              <span class="panel-badge">Section 5 DPDP Act</span>
+            </div>
+
+            <!-- Language tabs: English | हिंदी | मराठी -->
+            <div class="lang-tabs" role="tablist" aria-label="Consent Notice Language">
+              <button class="lang-btn active" id="btnLangEn" role="tab" aria-selected="true" data-lang="en">English</button>
+              <button class="lang-btn" id="btnLangHi" role="tab" aria-selected="false" data-lang="hi">हिंदी</button>
+              <button class="lang-btn" id="btnLangMr" role="tab" aria-selected="false" data-lang="mr">मराठी</button>
+            </div>
+          </div>
+
+          <div class="panel-body">
+            <!-- Amber Draft Banner -->
+            <div class="notice-draft-banner">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+              <span>Draft notice for guidance only. Review with qualified legal counsel before publishing.</span>
+            </div>
+
+            <!-- Notice card -->
+            <div class="notice-card" id="noticeContainer" lang="en">
+              <!-- Dynamic Notice Body -->
+            </div>
+
+            <div class="notice-excess-omitted-note" id="noticeExcessOmittedNote">
+              Excess fields are excluded from this notice. Remove them from your form or add verifiable statutory justification before collecting.
+            </div>
+          </div>
+        </div>
+
+        <!-- PANEL 6: ACTIONS & EXPORT -->
+        <div class="panel panel-actions-card" id="panel-actions">
+          <div class="panel-header">
+            <span class="panel-title">6. Export & Actions</span>
+          </div>
+
+          <div class="panel-body">
+            <div class="actions-stack">
+              <!-- Action 1: Print / Save as PDF -->
+              <button class="action-btn-large" id="btnPrintPdf">
+                <div class="action-icon-circle">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+                </div>
+                <div class="action-text-wrap">
+                  <span class="action-label">Print / Save as PDF</span>
+                  <span class="action-sub">Clean printer-ready audit report</span>
+                </div>
+              </button>
+
+              <!-- Action 2: Download Report .txt -->
+              <button class="action-btn-large" id="btnDownloadTxt">
+                <div class="action-icon-circle">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                </div>
+                <div class="action-text-wrap">
+                  <span class="action-label">Download text file (.txt)</span>
+                  <span class="action-sub">Detailed report & notice copy</span>
+                </div>
+              </button>
+
+              <!-- Action 3: Copy Consent Notice -->
+              <button class="action-btn-large action-btn-primary" id="btnCopyNotice">
+                <div class="action-icon-circle">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                </div>
+                <div class="action-text-wrap">
+                  <span class="action-label">Copy consent notice</span>
+                  <span class="action-sub">Copies active language notice</span>
+                </div>
+              </button>
+            </div>
+
+            <!-- Privacy assurance card -->
+            <div class="privacy-assurance-card">
+              <div class="privacy-title">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/></svg>
+                Zero-Knowledge Privacy
+              </div>
+              <div>Everything executes client-side in memory. No tracking cookies, no server telemetry, and no telemetry headers.</div>
+            </div>
+          </div>
+        </div>
+
+      </section>
+
+    </div><!-- /content-container -->
+
+    <footer class="app-footer">
+      Draft analysis for guidance only. Not legal advice. Rule-based local execution under India's Digital Personal Data Protection Act (DPDP Act 2023).
+    </footer>
+  </main>
+
+</div><!-- /app-layout -->
+
+<!-- TOAST NOTIFICATION -->
+<div class="toast" id="toastNotification" role="status" aria-live="polite">
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#4ADE80" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+  <span id="toastMessage">Notice copied to clipboard!</span>
+</div>
+
+<!-- ==========================================================================
+     CORE AUDITOR JAVASCRIPT ENGINE
+     100% Self-Contained, Zero Dependencies, Zero External Requests
+     ========================================================================== -->
+<script>
+(function() {
+  'use strict';
+
+  /* ==========================================================================
+     1. TAXONOMY & CANONICAL DICTIONARY
+     ========================================================================== */
+  const CATEGORIES = {
+    identity: { id: 'identity', label: 'Identity', sensitive: false, class: 'cat-identity', icon: 'person' },
+    contact: { id: 'contact', label: 'Contact', sensitive: false, class: 'cat-contact', icon: 'at' },
+    location: { id: 'location', label: 'Location', sensitive: false, class: 'cat-location', icon: 'map-pin' },
+    financial: { id: 'financial', label: 'Financial', sensitive: true, class: 'cat-financial', icon: 'rupee' },
+    health: { id: 'health', label: 'Health', sensitive: true, class: 'cat-health', icon: 'heart' },
+    govtid: { id: 'govtid', label: 'Government ID', sensitive: true, class: 'cat-govtid', icon: 'id-card' },
+    demographic: { id: 'demographic', label: 'Demographic', sensitive: false, class: 'cat-demographic', icon: 'users' },
+    children: { id: 'children', label: "Children's Data", sensitive: true, class: 'cat-children', icon: 'child' },
+    credentials: { id: 'credentials', label: 'Credentials', sensitive: true, class: 'cat-credentials', icon: 'key' },
+    technical: { id: 'technical', label: 'Technical / Device', sensitive: false, class: 'cat-technical', icon: 'cpu' },
+    nonpersonal: { id: 'nonpersonal', label: 'Non-personal', sensitive: false, class: 'cat-nonpersonal', icon: 'minus' }
+  };
+
+  // Canonical token dictionary mapped to categories & concepts
+  const TOKEN_MAP = [
+    // Identity
+    { tokens: ['name', 'fullname', 'firstname', 'lastname', 'middlename', 'cust_nm', 'usr_nm', 'uname', 'username', 'person', 'applicant_name', 'naam', 'nam'], category: 'identity', concept: 'name', label: 'Name' },
+    { tokens: ['photo', 'photograph', 'avatar', 'profile_pic', 'image'], category: 'identity', concept: 'photo', label: 'Photograph' },
+    { tokens: ['signature', 'sign', 'hastakshar'], category: 'identity', concept: 'signature', label: 'Signature' },
+
+    // Contact
+    { tokens: ['email', 'mail', 'emailid', 'email_addr', 'emailaddress', 'e_mail'], category: 'contact', concept: 'email', label: 'Email address' },
+    { tokens: ['mobile', 'mob', 'mob_no', 'phone', 'phoneno', 'phonenumber', 'cell', 'tel', 'telephone', 'contact', 'whatsapp', 'durvhash', 'sampark'], category: 'contact', concept: 'phone', label: 'Phone / Mobile' },
+    { tokens: ['fax'], category: 'contact', concept: 'fax', label: 'Fax' },
+
+    // Location
+    { tokens: ['address', 'addr', 'residential', 'street', 'house', 'flat', 'building', 'apartment', 'road', 'pata', 'patta', 'nivas', 'ghar'], category: 'location', concept: 'address', label: 'Street address' },
+    { tokens: ['city', 'district', 'town', 'village', 'shahar'], category: 'location', concept: 'city', label: 'City' },
+    { tokens: ['state', 'province', 'region', 'rajya'], category: 'location', concept: 'state', label: 'State' },
+    { tokens: ['pincode', 'pin_cd', 'pin', 'zip', 'zipcode', 'postal', 'postalcode'], category: 'location', concept: 'pincode', label: 'PIN code' },
+    { tokens: ['country', 'desh', 'nation'], category: 'location', concept: 'country', label: 'Country' },
+    { tokens: ['gps', 'lat', 'latitude', 'long', 'longitude', 'coordinates'], category: 'location', concept: 'gps', label: 'GPS coordinates' },
+
+    // Government ID (Sensitive)
+    { tokens: ['aadhaar', 'aadhar', 'adhar', 'uid', 'uidai'], category: 'govtid', concept: 'aadhaar', label: 'Aadhaar number', sensitive: true },
+    { tokens: ['pan', 'pancard', 'pan_no', 'pan_num'], category: 'govtid', concept: 'pan', label: 'PAN number', sensitive: true },
+    { tokens: ['passport', 'passport_no'], category: 'govtid', concept: 'passport', label: 'Passport number', sensitive: true },
+    { tokens: ['voter', 'voterid', 'epic'], category: 'govtid', concept: 'voterid', label: 'Voter ID', sensitive: true },
+    { tokens: ['driving', 'dl', 'license', 'licence'], category: 'govtid', concept: 'dl', label: 'Driving licence', sensitive: true },
+
+    // Financial (Sensitive)
+    { tokens: ['income', 'ann_income', 'annual_income', 'salary', 'ctc', 'earnings', 'pay', 'vetan', 'aay', 'kamai'], category: 'financial', concept: 'income', label: 'Annual income', sensitive: true },
+    { tokens: ['bank', 'account_no', 'acc_no', 'acc_num', 'ifsc', 'branch'], category: 'financial', concept: 'bank_account', label: 'Bank account details', sensitive: true },
+    { tokens: ['card', 'credit_card', 'debit_card', 'card_number', 'card_num', 'cvv', 'expiry'], category: 'financial', concept: 'card_details', label: 'Card details', sensitive: true },
+    { tokens: ['upi', 'vpa', 'upi_id'], category: 'financial', concept: 'upi', label: 'UPI ID', sensitive: true },
+    { tokens: ['tax', 'itr', 'networth', 'net_worth'], category: 'financial', concept: 'tax_networth', label: 'Tax / Net worth', sensitive: true },
+
+    // Health (Sensitive)
+    { tokens: ['health', 'medical', 'condition', 'disease', 'illness', 'diagnosis', 'symptom'], category: 'health', concept: 'medical_condition', label: 'Medical health condition', sensitive: true },
+    { tokens: ['blood', 'blood_group', 'bloodgroup', 'rakt_gath'], category: 'health', concept: 'blood_group', label: 'Blood group', sensitive: true },
+    { tokens: ['disability', 'handicap', 'divyang'], category: 'health', concept: 'disability', label: 'Disability status', sensitive: true },
+    { tokens: ['allergy', 'allergies'], category: 'health', concept: 'allergies', label: 'Allergies', sensitive: true },
+    { tokens: ['prescription', 'medication', 'medicine'], category: 'health', concept: 'prescription', label: 'Prescription details', sensitive: true },
+
+    // Demographic
+    { tokens: ['dob', 'dt_of_birth', 'birth', 'birthdate', 'date_of_birth', 'janam', 'janm', 'jnm'], category: 'demographic', concept: 'dob', label: 'Date of birth' },
+    { tokens: ['age', 'umar', 'aayu'], category: 'demographic', concept: 'age', label: 'Age' },
+    { tokens: ['gender', 'sex', 'ling', 'pronouns'], category: 'demographic', concept: 'gender', label: 'Gender' },
+    { tokens: ['rel', 'religion', 'dharma', 'faith'], category: 'demographic', concept: 'religion', label: 'Religion', sensitive: true },
+    { tokens: ['caste', 'subcaste', 'jati', 'category_reservation', 'quota'], category: 'demographic', concept: 'caste', label: 'Caste / Social category', sensitive: true },
+    { tokens: ['marital', 'marital_status', 'marriage'], category: 'demographic', concept: 'marital', label: 'Marital status' },
+
+    // Children's Data (Sensitive)
+    { tokens: ['child', 'child_name', 'minor', 'balak', 'bachha'], category: 'children', concept: 'child_name', label: "Child's name", sensitive: true },
+    { tokens: ['student', 'student_name', 'roll_no', 'rollno', 'student_id'], category: 'children', concept: 'student', label: 'Student identity', sensitive: true },
+    { tokens: ['guardian', 'parent', 'father', 'mother', 'mata', 'pita'], category: 'children', concept: 'guardian', label: 'Parent / Guardian details', sensitive: true },
+    { tokens: ['school', 'school_name', 'class_grade', 'standard', 'division'], category: 'children', concept: 'school', label: 'School / Class' },
+
+    // Credentials (Sensitive)
+    { tokens: ['password', 'pwd', 'pass', 'passcode'], category: 'credentials', concept: 'password', label: 'Password', sensitive: true },
+    { tokens: ['pin_code_auth', 'mpin', 'secret', 'otp'], category: 'credentials', concept: 'auth_pin', label: 'Security PIN / OTP', sensitive: true },
+
+    // Technical & Tracking
+    { tokens: ['utm_source', 'utm_medium', 'utm_campaign', 'utm_term', 'utm_content', 'gclid', 'fbclid', 'track', 'pixel', 'fingerprint', 'analytics'], category: 'technical', concept: 'tracking', label: 'Marketing tracker' },
+    { tokens: ['device_id', 'ip_address', 'ip', 'user_agent', 'browser'], category: 'technical', concept: 'device', label: 'Device telemetry' },
+
+    // Non-personal
+    { tokens: ['csrf', 'csrf_token', 'xsrf', 'token', 'nonce', '_token'], category: 'nonpersonal', concept: 'csrf', label: 'CSRF security token' },
+    { tokens: ['captcha', 'recaptcha', 'turnstile', 'hcaptcha'], category: 'nonpersonal', concept: 'captcha', label: 'Anti-bot verification' },
+    { tokens: ['order_id', 'sku', 'product_id', 'item_code', 'quantity', 'qty', 'amount', 'currency'], category: 'nonpersonal', concept: 'business_item', label: 'Commercial transaction item' },
+    { tokens: ['message', 'comment', 'comments', 'feedback', 'notes', 'inquiry', 'enquiry', 'query'], category: 'nonpersonal', concept: 'message', label: 'User inquiry message' }
+  ];
+
+  /* ==========================================================================
+     2. 14 PURPOSE PROFILES & RULES
+     ========================================================================== */
+  const PURPOSE_PROFILES = [
+    {
+      id: 'newsletter',
+      name: 'Newsletter signup',
+      keywords: ['newsletter', 'subscribe', 'bulletin', 'updates', 'dispatch', 'digest', 'email list', 'mailing list'],
+      needed: ['email'],
+      conditional: ['name'], // First name allowed for greeting
+      excess: ['phone', 'dob', 'age', 'gender', 'religion', 'caste', 'address', 'pincode', 'city', 'state', 'aadhaar', 'pan', 'passport', 'voterid', 'dl', 'income', 'bank_account', 'card_details', 'medical_condition', 'blood_group', 'tracking'],
+      customReasons: {
+        email: 'Necessary to deliver the requested newsletter to the subscriber.',
+        name: 'Optional for greeting the recipient in email communications.',
+        phone: 'A newsletter only requires email delivery. Mobile phone numbers are unnecessary and excessive.',
+        dob: 'Date of birth is irrelevant for receiving general newsletter publications.',
+        gender: 'Demographic indicators like gender are intrusive and irrelevant for a newsletter.',
+        religion: 'Religious affiliation is sensitive personal data and completely excessive for a newsletter.',
+        address: 'Physical postal address is unnecessary for a digital email newsletter.',
+        pincode: 'Postal PIN code is unnecessary for digital email communications.',
+        aadhaar: 'Government ID numbers carry high privacy risks and are strictly excess for newsletter signup.',
+        income: 'Income and financial information are highly intrusive and unnecessary for a newsletter.',
+        tracking: 'Covert marketing tracking parameter captured silently via hidden input.'
+      }
+    },
+    {
+      id: 'contact',
+      name: 'Contact us / Inquiry',
+      keywords: ['contact', 'inquiry', 'enquiry', 'touch', 'reach us', 'support', 'message', 'helpdesk', 'query'],
+      needed: ['name', 'email', 'message'],
+      conditional: ['phone'],
+      excess: ['dob', 'age', 'gender', 'religion', 'caste', 'address', 'aadhaar', 'pan', 'income', 'bank_account', 'medical_condition'],
+      customReasons: {
+        name: 'Required to address the person submitting the inquiry.',
+        email: 'Required to reply to the user inquiry.',
+        message: 'The actual message or question being submitted.',
+        phone: 'Optional channel for telephone call-backs.',
+        dob: 'Date of birth is not required to respond to general queries.',
+        address: 'Postal address is excess for handling general customer inquiries.'
+      }
+    },
+    {
+      id: 'job_application',
+      name: 'Job application',
+      keywords: ['job', 'career', 'resume', 'cv', 'employment', 'hiring', 'vacancy', 'interview', 'work with us'],
+      needed: ['name', 'email', 'phone', 'city'],
+      conditional: ['dob', 'gender'],
+      excess: ['aadhaar', 'pan', 'religion', 'caste', 'income', 'bank_account'],
+      customReasons: {
+        name: 'Identifies the candidate.',
+        email: 'Used for interview schedules and recruitment updates.',
+        phone: 'Used for recruiter outreach.',
+        city: 'Verifies candidate location or relocation requirements.',
+        aadhaar: 'Government identity cards should only be collected at formal onboarding, not initial application.',
+        pan: 'Tax PAN is not necessary during the initial application phase.',
+        religion: 'Religious beliefs are prohibited criteria for hiring evaluations.'
+      }
+    },
+    {
+      id: 'ecommerce',
+      name: 'E-commerce checkout',
+      keywords: ['checkout', 'order', 'buy', 'ecommerce', 'shopping', 'purchase', 'cart', 'store'],
+      needed: ['name', 'phone', 'email', 'address', 'pincode', 'city', 'state'],
+      conditional: [],
+      excess: ['dob', 'gender', 'religion', 'caste', 'aadhaar', 'income'],
+      customReasons: {
+        address: 'Essential for physical delivery of ordered goods.',
+        pincode: 'Essential for courier logistics and postal routing.',
+        phone: 'Required for delivery logistics driver coordination.',
+        dob: 'Date of birth is unnecessary for standard retail checkout.',
+        aadhaar: 'Government ID is strictly excess for purchasing physical goods.'
+      }
+    },
+    {
+      id: 'account',
+      name: 'Account registration',
+      keywords: ['account', 'signup', 'register', 'create account', 'join', 'login', 'credentials'],
+      needed: ['email', 'password'],
+      conditional: ['name', 'phone', 'dob'],
+      excess: ['address', 'pincode', 'aadhaar', 'pan', 'income', 'religion', 'caste'],
+      customReasons: {
+        email: 'Account username and security communication channel.',
+        password: 'Authentication credential.',
+        dob: 'Allowed if required for age-gating (18+ verification under DPDP Section 9).'
+      }
+    },
+    {
+      id: 'event',
+      name: 'Event registration',
+      keywords: ['event', 'webinar', 'conference', 'workshop', 'summit', 'seminar', 'meetup', 'rsvp'],
+      needed: ['name', 'email'],
+      conditional: ['phone', 'allergies'],
+      excess: ['dob', 'address', 'aadhaar', 'pan', 'income', 'religion'],
+      customReasons: {
+        name: 'Required for attendee badge and identification.',
+        email: 'Required to deliver ticket and event joining instructions.',
+        allergies: 'Optional if catering is provided at the physical venue.'
+      }
+    },
+    {
+      id: 'clinic',
+      name: 'Clinic / Healthcare appointment',
+      keywords: ['clinic', 'doctor', 'hospital', 'patient', 'medical', 'appointment', 'consultation', 'health'],
+      needed: ['name', 'phone', 'dob', 'medical_condition'],
+      conditional: ['email', 'gender', 'address'],
+      excess: ['income', 'religion', 'caste', 'tracking'],
+      customReasons: {
+        medical_condition: 'Necessary for physician clinical assessment.',
+        dob: 'Critical clinical parameter for patient dosage and diagnosis.'
+      }
+    },
+    {
+      id: 'loan',
+      name: 'Loan application',
+      keywords: ['loan', 'credit', 'mortgage', 'lending', 'borrow', 'emi', 'finance', 'fintech'],
+      needed: ['name', 'phone', 'email', 'dob', 'address', 'pincode', 'pan', 'income', 'bank_account'],
+      conditional: ['aadhaar', 'gender'],
+      excess: ['religion', 'caste'],
+      customReasons: {
+        pan: 'Statutory KYC requirement under Indian banking regulations.',
+        income: 'Essential for credit underwriting and debt service assessment.'
+      }
+    },
+    {
+      id: 'insurance',
+      name: 'Insurance policy application',
+      keywords: ['insurance', 'policy', 'premium', 'underwriting', 'coverage', 'mediclaim', 'claim'],
+      needed: ['name', 'phone', 'email', 'dob', 'address', 'medical_condition', 'pan'],
+      conditional: ['income', 'gender'],
+      excess: ['religion', 'caste'],
+      customReasons: {
+        medical_condition: 'Necessary for actuarial risk assessment under insurance underwriting.'
+      }
+    },
+    {
+      id: 'school',
+      name: 'School / College admission',
+      keywords: ['school', 'college', 'admission', 'student', 'university', 'enroll', 'tuition', 'academic'],
+      needed: ['child_name', 'dob', 'guardian', 'phone', 'email', 'address'],
+      conditional: ['caste'], // Quota reservation
+      excess: ['income', 'tracking'],
+      customReasons: {
+        child_name: "Required for student enrollment records under Section 9 of DPDP Act.",
+        guardian: "Required for verifiable parental consent under Section 9."
+      }
+    },
+    {
+      id: 'survey',
+      name: 'Feedback survey',
+      keywords: ['survey', 'feedback', 'poll', 'review', 'nps', 'questionnaire', 'rating'],
+      needed: ['message'],
+      conditional: ['email'],
+      excess: ['name', 'phone', 'address', 'dob', 'aadhaar', 'income'],
+      customReasons: {
+        message: 'The feedback comments and user ratings provided.',
+        name: 'Surveys should prioritize anonymity; collecting names is generally excessive.'
+      }
+    },
+    {
+      id: 'complaint',
+      name: 'Customer grievance',
+      keywords: ['complaint', 'grievance', 'dispute', 'ticket', 'escalation', 'issue', 'redressal'],
+      needed: ['name', 'email', 'message'],
+      conditional: ['phone'],
+      excess: ['dob', 'religion', 'income', 'aadhaar'],
+      customReasons: {
+        message: 'Details of the grievance being filed.'
+      }
+    },
+    {
+      id: 'donation',
+      name: 'Charity donation',
+      keywords: ['donation', 'donate', 'charity', 'ngo', 'nonprofit', 'contribute', 'cause', 'relief'],
+      needed: ['name', 'email', 'phone', 'pan', 'address'],
+      conditional: [],
+      excess: ['dob', 'religion', 'caste', 'income'],
+      customReasons: {
+        pan: 'Required for tax exemption certificate under Section 80G of Income Tax Act India.'
+      }
+    },
+    {
+      id: 'coaching',
+      name: 'Coaching / Tuition enrollment',
+      keywords: ['coaching', 'tuition', 'course', 'class', 'training', 'institute', 'test series'],
+      needed: ['child_name', 'phone', 'email'],
+      conditional: ['school'],
+      excess: ['aadhaar', 'address', 'religion', 'income'],
+      customReasons: {
+        child_name: 'Name of the enrolled student.'
+      }
+    }
+  ];
+
+  const GENERIC_PROFILE = {
+    id: 'generic',
+    name: 'General purpose',
+    keywords: [],
+    needed: ['name', 'email'],
+    conditional: ['phone'],
+    excess: ['aadhaar', 'pan', 'income', 'religion', 'caste', 'medical_condition', 'tracking'],
+    customReasons: {
+      name: 'Standard identification for service delivery.',
+      email: 'Communication channel.',
+      aadhaar: 'Government ID is strictly excessive without legal statutory requirement.'
+    }
+  };
+
+  /* ==========================================================================
+     3. NORMALIZER & TOKENIZER
+     ========================================================================== */
+  function levenshteinDistance(s1, s2) {
+    if (s1 === s2) return 0;
+    const l1 = s1.length;
+    const l2 = s2.length;
+    if (Math.abs(l1 - l2) > 1) return 2; // Optimization: only need distance 1
+
+    const d = [];
+    for (let i = 0; i <= l1; i++) d[i] = [i];
+    for (let j = 0; j <= l2; j++) d[0][j] = j;
+
+    for (let i = 1; i <= l1; i++) {
+      for (let j = 1; j <= l2; j++) {
+        const cost = s1[i - 1] === s2[j - 1] ? 0 : 1;
+        d[i][j] = Math.min(
+          d[i - 1][j] + 1,
+          d[i][j - 1] + 1,
+          d[i - 1][j - 1] + cost
+        );
+      }
+    }
+    return d[l1][l2];
+  }
+
+  function cleanFieldIdentifier(raw) {
+    if (!raw) return '';
+    let s = raw.trim();
+
+    // 1. Split camelCase / PascalCase
+    s = s.replace(/([a-z])([A-Z])/g, '$1 $2');
+    s = s.replace(/([A-Z])([A-Z][a-z])/g, '$1 $2');
+
+    // 2. Replace separators with space
+    s = s.replace(/[-_./\\:]/g, ' ');
+
+    // 3. Lowercase
+    s = s.toLowerCase();
+
+    // 4. Strip noise prefixes
+    const prefixes = ['txt', 'lbl', 'inp', 'input', 'usr', 'user', 'cust', 'customer', 'client', 'tbl', 'fld', 'form', 'data', 'val', 'ctl'];
+    const words = s.split(/\s+/).filter(Boolean);
+    const cleanedWords = [];
+
+    for (let w of words) {
+      for (let p of prefixes) {
+        if (w.startsWith(p) && w.length > p.length + 1) {
+          w = w.substring(p.length);
+          break;
+        }
+      }
+      cleanedWords.push(w);
+    }
+
+    return cleanedWords.join(' ');
+  }
+
+  function matchTokenToConcept(cleanedString, rawName, inputType, detectedLabel) {
+    const combined = `${cleanedString} ${detectedLabel || ''}`.toLowerCase();
+    const words = combined.split(/\s+/).filter(Boolean);
+
+    // Qualifier rules: check if business/company
+    const isCompany = /\b(company|org|organization|firm|business|employer|b2b)\b/i.test(combined);
+    if (isCompany && /\b(name|title)\b/i.test(combined)) {
+      return {
+        concept: 'company_name',
+        category: 'nonpersonal',
+        label: 'Company / Organization name',
+        sensitive: false,
+        matchedBy: 'qualifier:company_name'
+      };
+    }
+
+    // Direct token matching
+    for (let item of TOKEN_MAP) {
+      for (let token of item.tokens) {
+        // Exact word match
+        for (let word of words) {
+          if (word === token) {
+            return {
+              concept: item.concept,
+              category: item.category,
+              label: item.label,
+              sensitive: item.sensitive || false,
+              matchedBy: `name:${token}`
+            };
+          }
+        }
+        // Substring match in full cleaned string if token is significant (length >= 4)
+        if (token.length >= 4 && cleanedString.includes(token)) {
+          return {
+            concept: item.concept,
+            category: item.category,
+            label: item.label,
+            sensitive: item.sensitive || false,
+            matchedBy: `substring:${token}`
+          };
+        }
+        // Levenshtein fuzzy match (dist <= 1 for word length >= 4)
+        if (token.length >= 4) {
+          for (let word of words) {
+            if (word.length >= 4 && levenshteinDistance(word, token) <= 1) {
+              return {
+                concept: item.concept,
+                category: item.category,
+                label: item.label,
+                sensitive: item.sensitive || false,
+                matchedBy: `fuzzy:${token}`
+              };
+            }
+          }
+        }
+      }
+    }
+
+    // Fallback based on HTML input type
+    if (inputType === 'email') {
+      return { concept: 'email', category: 'contact', label: 'Email address', sensitive: false, matchedBy: 'type:email' };
+    }
+    if (inputType === 'tel') {
+      return { concept: 'phone', category: 'contact', label: 'Phone number', sensitive: false, matchedBy: 'type:tel' };
+    }
+    if (inputType === 'password') {
+      return { concept: 'password', category: 'credentials', label: 'Password', sensitive: true, matchedBy: 'type:password' };
+    }
+    if (inputType === 'date') {
+      return { concept: 'dob', category: 'demographic', label: 'Date', sensitive: false, matchedBy: 'type:date' };
+    }
+
+    // Unknown field fallback
+    return {
+      concept: 'unknown',
+      category: 'identity',
+      label: rawName || 'Field',
+      sensitive: false,
+      matchedBy: 'generic_fallback'
+    };
+  }
+
+  /* ==========================================================================
+     4. FORM PARSER (MODE A: HTML & MODE B: LIST)
+     ========================================================================== */
+  function parseHtmlMode(htmlString) {
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(htmlString, 'text/html');
+    const fields = [];
+    const formLevelFindings = [];
+
+    // Collect all elements: input, textarea, select
+    const elements = Array.from(doc.querySelectorAll('input, textarea, select'));
+
+    let hasConsentMechanism = false;
+    let hasPretickedConsent = false;
+    let hasBundledConsent = false;
+    let hasChildrenSignals = false;
+    let hasCovertTracking = false;
+
+    // Map labels by for attribute
+    const labelsByFor = new Map();
+    doc.querySelectorAll('label[for]').forEach(lbl => {
+      labelsByFor.set(lbl.getAttribute('for'), lbl.textContent.trim());
+    });
+
+    // Track radio groups to avoid duplicates
+    const processedRadioNames = new Set();
+
+    elements.forEach(el => {
+      const tag = el.tagName.toLowerCase();
+      const type = (el.getAttribute('type') || (tag === 'textarea' ? 'textarea' : tag === 'select' ? 'select' : 'text')).toLowerCase();
+      const name = el.getAttribute('name') || el.getAttribute('id') || '';
+      const id = el.getAttribute('id') || '';
+
+      // Skip submit/button/reset
+      if (['submit', 'button', 'reset', 'image'].includes(type)) {
+        return;
+      }
+
+      // Group radio buttons
+      if (type === 'radio') {
+        if (processedRadioNames.has(name)) return;
+        processedRadioNames.add(name);
+      }
+
+      // Find label
+      let label = labelsByFor.get(id) || labelsByFor.get(name) || '';
+      if (!label) {
+        const parentLabel = el.closest('label');
+        if (parentLabel) label = parentLabel.textContent.trim();
+      }
+      if (!label) label = el.getAttribute('placeholder') || el.getAttribute('aria-label') || name || id;
+
+      // Check select options for demographic signals (Gender, Religion, Caste)
+      if (tag === 'select') {
+        const optionTexts = Array.from(el.querySelectorAll('option')).map(o => (o.textContent + ' ' + (o.value || '')).toLowerCase()).join(' ');
+        if (/(\bmale\b|\bfemale\b|\btransgender\b)/i.test(optionTexts) && !label) {
+          label = 'Gender / Sex';
+        }
+        if (/(\bhindu\b|\bmuslim\b|\bchristian\b|\bsikh\b|\bjain\b)/i.test(optionTexts)) {
+          label = 'Religion';
+        }
+        if (/(\bobc\b|\bsc\b|\bst\b|\bgeneral category\b)/i.test(optionTexts)) {
+          label = 'Social Category / Caste';
+        }
+      }
+
+      // Form-level check: Checkbox consent & pre-ticked detection
+      const combinedCheckText = `${name} ${id} ${label}`.toLowerCase();
+      const isConsentBox = type === 'checkbox' && /(agree|consent|terms|privacy|policy|accept|condition)/i.test(combinedCheckText);
+
+      if (isConsentBox) {
+        hasConsentMechanism = true;
+        const isChecked = el.hasAttribute('checked') || el.checked;
+        if (isChecked) {
+          hasPretickedConsent = true;
+          formLevelFindings.push({
+            type: 'danger',
+            title: 'Pre-ticked consent detected (DPDP Section 6(1) Violation)',
+            detail: `The consent checkbox #${name || id} is checked by default. DPDP Act requires a clear, unambiguous affirmative action.`
+          });
+        }
+
+        // Bundled consent check
+        const isBundled = /(terms|policy|conditions)/i.test(combinedCheckText) && /(marketing|promotional|partners|third party|updates|sms|offers)/i.test(combinedCheckText);
+        if (isBundled) {
+          hasBundledConsent = true;
+          formLevelFindings.push({
+            type: 'warning',
+            title: 'Bundled consent detected',
+            detail: `Checkbox #${name || id} bundles service terms with promotional marketing or third-party partner sharing. Consent must be purpose-specific.`
+          });
+        }
+      }
+
+      // Form-level check: Covert tracking hidden fields
+      if (type === 'hidden') {
+        if (/(utm_|gclid|fbclid|fingerprint|session_id|track|analytics|device_id)/i.test(name)) {
+          hasCovertTracking = true;
+          formLevelFindings.push({
+            type: 'warning',
+            title: 'Covert tracking hidden field detected',
+            detail: `Hidden input '${name}' collects tracking metadata without explicit transparent notice to the user.`
+          });
+        }
+      }
+
+      // Children's data signals
+      if (/(child|minor|student|balak|bachha|school|grade|roll_no|guardian|parent)/i.test(combinedCheckText)) {
+        hasChildrenSignals = true;
+      }
+
+      fields.push({
+        rawName: name || id || 'unnamed_field',
+        id: id,
+        type: type,
+        label: label,
+        autocomplete: el.getAttribute('autocomplete') || '',
+        required: el.hasAttribute('required')
+      });
+    });
+
+    if (hasChildrenSignals) {
+      formLevelFindings.push({
+        type: 'warning',
+        title: "Children's personal data signals identified (DPDP Section 9)",
+        detail: "Form contains fields relating to minors or students. Processing data of a child requires verifiable parental consent."
+      });
+    }
+
+    if (!hasConsentMechanism && fields.length > 0) {
+      formLevelFindings.push({
+        type: 'warning',
+        title: 'Missing consent mechanism',
+        detail: 'No consent checkbox or privacy notice link was discovered in this form.'
+      });
+    }
+
+    return { fields, formLevelFindings };
+  }
+
+  function parseListMode(listString) {
+    const lines = listString.split(/[\n,;]+/).map(s => s.trim()).filter(Boolean);
+    const fields = [];
+
+    lines.forEach(line => {
+      // Clean numbering like "1. name" or "- email"
+      const cleaned = line.replace(/^[\d\-*.)\s]+/, '').trim();
+      if (!cleaned) return;
+
+      fields.push({
+        rawName: cleaned,
+        id: cleaned,
+        type: 'text',
+        label: cleaned,
+        autocomplete: '',
+        required: false
+      });
+    });
+
+    return { fields, formLevelFindings: [] };
+  }
+
+  /* ==========================================================================
+     5. PURPOSE MATCHER & VERDICT ASSESSOR
+     ========================================================================== */
+  function findPurposeProfile(purposeText) {
+    if (!purposeText || !purposeText.trim()) return GENERIC_PROFILE;
+    const lower = purposeText.toLowerCase().trim();
+
+    for (let p of PURPOSE_PROFILES) {
+      if (lower.includes(p.id) || lower.includes(p.name.toLowerCase())) {
+        return p;
+      }
+      for (let kw of p.keywords) {
+        if (lower.includes(kw)) {
+          return p;
+        }
+      }
+    }
+    return GENERIC_PROFILE;
+  }
+
+  function evaluateFields(fields, profile) {
+    return fields.map(field => {
+      const cleaned = cleanFieldIdentifier(field.rawName);
+      const match = matchTokenToConcept(cleaned, field.rawName, field.type, field.label);
+      const concept = match.concept;
+      const categoryObj = CATEGORIES[match.category] || CATEGORIES.identity;
+      const isPersonal = categoryObj.id !== 'nonpersonal';
+
+      let verdict = 'needed'; // needed | excess | review | not-personal
+      let reason = '';
+
+      if (!isPersonal) {
+        verdict = 'not-personal';
+        reason = concept === 'csrf' ? 'Security CSRF token; non-personal metadata.' :
+                 concept === 'captcha' ? 'Bot detection parameter; non-personal.' :
+                 concept === 'company_name' ? 'Company or business entity identifier; not personal data under DPDP Act.' :
+                 'Technical or commercial parameter with no direct link to an individual.';
+      } else {
+        // Personal data: check profile rules
+        const isNeeded = profile.needed.includes(concept);
+        const isConditional = profile.conditional && profile.conditional.includes(concept);
+        const isExcess = profile.excess && profile.excess.includes(concept);
+
+        if (isNeeded) {
+          verdict = 'needed';
+          reason = profile.customReasons && profile.customReasons[concept] ?
+                   profile.customReasons[concept] :
+                   `Necessary to fulfill the specified purpose (${profile.name}).`;
+        } else if (isConditional) {
+          verdict = 'review';
+          reason = profile.customReasons && profile.customReasons[concept] ?
+                   profile.customReasons[concept] :
+                   `Optional or contextual for this purpose. Collect only if justified.`;
+        } else if (isExcess) {
+          verdict = 'excess';
+          reason = profile.customReasons && profile.customReasons[concept] ?
+                   profile.customReasons[concept] :
+                   `Not necessary for ${profile.name.toLowerCase()}. Recommend removing under DPDP minimisation rules.`;
+        } else {
+          // Fallback based on sensitivity
+          if (categoryObj.sensitive) {
+            verdict = 'excess';
+            reason = `Sensitive personal data is strictly excessive for this purpose unless explicitly mandated by law.`;
+          } else {
+            verdict = 'review';
+            reason = `Borderline relevance for this purpose. Review if strictly essential.`;
+          }
+        }
+      }
+
+      return {
+        ...field,
+        concept: concept,
+        category: categoryObj,
+        isPersonal: isPersonal,
+        verdict: verdict,
+        reason: reason,
+        matchedBy: match.matchedBy
+      };
+    });
+  }
+
+  /* ==========================================================================
+     6. SCORE ENGINE (0-100 EXPLAINABLE CALCULATION)
+     ========================================================================== */
+  function calculateScore(evaluatedFields, formFindings) {
+    let score = 100;
+    const deductions = [];
+
+    // Form-level deductions
+    formFindings.forEach(f => {
+      if (f.title.includes('Pre-ticked consent')) {
+        score -= 20;
+        deductions.push({ pts: -20, reason: 'Pre-ticked consent checkbox (DPDP Sec 6(1) violation)' });
+      } else if (f.title.includes('Bundled consent')) {
+        score -= 15;
+        deductions.push({ pts: -15, reason: 'Bundled consent combining service terms with marketing' });
+      } else if (f.title.includes('Children')) {
+        score -= 15;
+        deductions.push({ pts: -15, reason: "Children's data collected without verifiable parental consent" });
+      } else if (f.title.includes('Covert tracking')) {
+        score -= 10;
+        deductions.push({ pts: -10, reason: 'Covert marketing tracking parameter in hidden input' });
+      } else if (f.title.includes('Missing consent')) {
+        score -= 10;
+        deductions.push({ pts: -10, reason: 'Missing clear consent checkbox or privacy notice' });
+      }
+    });
+
+    // Field-level deductions
+    let neededCount = 0;
+    let excessCount = 0;
+    let reviewCount = 0;
+    let personalCount = 0;
+
+    evaluatedFields.forEach(f => {
+      if (f.isPersonal) personalCount++;
+
+      if (f.verdict === 'needed') {
+        neededCount++;
+      } else if (f.verdict === 'excess') {
+        excessCount++;
+        const pts = f.category.sensitive ? -20 : -12;
+        score += pts;
+        deductions.push({
+          pts: pts,
+          reason: `Excess ${f.category.sensitive ? 'sensitive ' : ''}field: ${f.rawName} (${f.label})`
+        });
+      } else if (f.verdict === 'review') {
+        reviewCount++;
+        score -= 5;
+        deductions.push({
+          pts: -5,
+          reason: `Borderline review field: ${f.rawName}`
+        });
+      }
+    });
+
+    score = Math.max(0, Math.min(100, score));
+
+    // Minimisation Ratio
+    const ratio = personalCount > 0 ? Math.round((neededCount / personalCount) * 100) : 100;
+
+    // Band
+    let band = 'Strong';
+    let bandClass = 'band-strong';
+    if (score < 40) {
+      band = 'Poor';
+      bandClass = 'band-poor';
+    } else if (score < 65) {
+      band = 'Weak';
+      bandClass = 'band-weak';
+    } else if (score < 85) {
+      band = 'Fair';
+      bandClass = 'band-fair';
+    }
+
+    // Status Sentence
+    let statusSentence = '';
+    if (band === 'Strong') {
+      statusSentence = 'High compliance. The form practices exemplary personal data minimisation.';
+    } else if (band === 'Fair') {
+      statusSentence = `Fair compliance — ${excessCount} excess field${excessCount === 1 ? '' : 's'} identified that should be removed.`;
+    } else if (band === 'Weak') {
+      statusSentence = `Weak compliance — multiple excess fields and notice gaps identified.`;
+    } else {
+      statusSentence = `Poor compliance — ${excessCount} excess fields and critical consent violations require immediate fix.`;
+    }
+
+    return {
+      score,
+      band,
+      bandClass,
+      statusSentence,
+      ratio,
+      deductions,
+      counts: {
+        total: evaluatedFields.length,
+        personal: personalCount,
+        nonpersonal: evaluatedFields.length - personalCount,
+        necessary: neededCount,
+        unnecessary: excessCount,
+        review: reviewCount
+      }
+    };
+  }
+
+  /* ==========================================================================
+     7. MULTILINGUAL NOTICE GENERATOR (EN / HI / MR)
+     ========================================================================== */
+  function renderConsentNotice(evaluatedFields, purposeText, lang) {
+    const neededFields = evaluatedFields.filter(f => f.verdict === 'needed');
+    const excessFields = evaluatedFields.filter(f => f.verdict === 'excess');
+
+    // Field names mapped to English, Hindi, and Marathi
+    const fieldTranslations = {
+      name: { en: 'Full Name', hi: 'पूरा नाम', mr: 'पूर्ण नाव' },
+      email: { en: 'Email Address', hi: 'ईमेल पता', mr: 'ईमेल पत्ता' },
+      phone: { en: 'Mobile / Phone Number', hi: 'मोबाइल नंबर', mr: 'मोबाइल नंबर' },
+      address: { en: 'Residential Address', hi: 'निवास का पता', mr: 'निवासी पत्ता' },
+      pincode: { en: 'Postal PIN Code', hi: 'पिन कोड', mr: 'पिन कोड' },
+      dob: { en: 'Date of Birth', hi: 'जन्म तिथि', mr: 'जन्मतारीख' },
+      city: { en: 'City of Residence', hi: 'शहर', mr: 'शहर' },
+      message: { en: 'Inquiry / Message Content', hi: 'संदेश विवरण', mr: 'संदेश तपशील' },
+      password: { en: 'Account Password', hi: 'खाता पासवर्ड', mr: 'खाते पासवर्ड' },
+      medical_condition: { en: 'Medical Symptoms / Conditions', hi: 'चिकित्सा लक्षण/स्थिति', mr: 'वैद्यकीय लक्षणे/स्थिती' }
+    };
+
+    let itemsHtml = '';
+    if (neededFields.length === 0) {
+      itemsHtml = lang === 'hi' ? '<li>कोई व्यक्तिगत डेटा आवश्यक नहीं पाया गया</li>' :
+                  lang === 'mr' ? '<li>कोणतीही वैयक्तिक माहिती आवश्यक आढळली नाही</li>' :
+                  '<li>No personal data identified as necessary</li>';
+    } else {
+      neededFields.forEach(f => {
+        const trans = fieldTranslations[f.concept];
+        const labelText = trans ? trans[lang] : f.label;
+        itemsHtml += `<li><strong>${escapeHtml(labelText)}</strong> (${escapeHtml(f.rawName)})</li>`;
+      });
+    }
+
+    let noticeHtml = '';
+
+    if (lang === 'hi') {
+      noticeHtml = `
+        <div class="notice-section">
+          <div class="notice-section-title">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+            १. हम क्या एकत्र करते हैं (Data We Collect)
+          </div>
+          <p>डिजिटल व्यक्तिगत डेटा संरक्षण अधिनियम, २०२३ के तहत केवल वही व्यक्तिगत जानकारी एकत्र की जाती है जो आपके अनुरोध को पूरा करने के लिए आवश्यक है:</p>
+          <ul class="notice-bullets">${itemsHtml}</ul>
+        </div>
+
+        <div class="notice-section">
+          <div class="notice-section-title">२. एकत्र करने का उद्देश्य (Why We Collect It)</div>
+          <p>यह व्यक्तिगत डेटा विशेष रूप से <strong>${escapeHtml(purposeText || 'निर्दिष्ट उद्देश्य')}</strong> के लिए और आपके साथ सीधे संचार हेतु उपयोग किया जाएगा।</p>
+        </div>
+
+        <div class="notice-section">
+          <div class="notice-section-title">३. सहमति वापस लेने का अधिकार (How to Withdraw Consent)</div>
+          <p>आप किसी भी समय <span class="notice-placeholder" contenteditable="true">[contact email]</span> पर ईमेल भेजकर या संदेश में दिए गए लिंक द्वारा अपनी सहमति वापस ले सकते हैं। सहमति वापस लेने से पहले की गई प्रक्रिया की वैधता प्रभावित नहीं होगी।</p>
+        </div>
+
+        <div class="notice-section">
+          <div class="notice-section-title">४. शिकायत निवारण एवं डेटा प्रतिधारण (Grievance & Retention)</div>
+          <p>डेटा सुरक्षा संबंधी प्रश्नों के लिए हमारे शिकायत निवारण अधिकारी <span class="notice-placeholder" contenteditable="true">[Grievance Officer Name]</span> से संपर्क करें। डेटा केवल <span class="notice-placeholder" contenteditable="true">[period e.g. 1 वर्ष]</span> की अवधि तक अथवा जब तक उद्देश्य पूरा न हो जाए, तब तक ही सुरक्षित रखा जाएगा।</p>
+        </div>
+      `;
+    } else if (lang === 'mr') {
+      noticeHtml = `
+        <div class="notice-section">
+          <div class="notice-section-title">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+            १. आम्ही कोणती माहिती गोळा करतो (Data We Collect)
+          </div>
+          <p>डीपीडीपी कायदा २०२३ नुसार आम्ही केवळ तुमच्या सेवेसाठी आवश्यक असणारी खालील वैयक्तिक माहिती गोळा करतो:</p>
+          <ul class="notice-bullets">${itemsHtml}</ul>
+        </div>
+
+        <div class="notice-section">
+          <div class="notice-section-title">२. गोळा करण्याचे कारण (Why We Collect It)</div>
+          <p>ही वैयक्तिक माहिती केवळ <strong>${escapeHtml(purposeText || 'विहित उद्देश')}</strong> च्या पूर्ततेसाठी आणि आवश्यक संवादासाठी वापरली जाईल.</p>
+        </div>
+
+        <div class="notice-section">
+          <div class="notice-section-title">३. सहमती मागे घेण्याची पद्धत (How to Withdraw Consent)</div>
+          <p>तुम्ही तुमची सहमती कोणत्याही वेळी <span class="notice-placeholder" contenteditable="true">[contact email]</span> वर ईमेल पाठवून मागे घेऊ शकता. सहमती मागे घेण्यापूर्वी केलेल्या प्रक्रियेवर याचा कोणताही परिणाम होणार नाही.</p>
+        </div>
+
+        <div class="notice-section">
+          <div class="notice-section-title">४. तक्रार निवारण अधिकारी व डेटा धारणा (Grievance & Retention)</div>
+          <p>कोणत्याही तक्रारीसाठी आमचे तक्रार निवारण अधिकारी <span class="notice-placeholder" contenteditable="true">[Grievance Officer Name]</span> यांच्याशी संपर्क साधावा. हा डेटा केवळ <span class="notice-placeholder" contenteditable="true">[period उदा. १ वर्ष]</span> कालावधीसाठी सुरक्षित ठेवला जाईल.</p>
+        </div>
+      `;
+    } else {
+      // English
+      noticeHtml = `
+        <div class="notice-section">
+          <div class="notice-section-title">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+            1. What We Collect
+          </div>
+          <p>Under the Digital Personal Data Protection Act, 2023 (DPDP Act), <span class="notice-placeholder" contenteditable="true">[Business Name]</span> collects only personal data strictly necessary to fulfill your request:</p>
+          <ul class="notice-bullets">${itemsHtml}</ul>
+        </div>
+
+        <div class="notice-section">
+          <div class="notice-section-title">2. Purpose of Collection</div>
+          <p>This personal data is collected solely for the purpose of <strong>${escapeHtml(purposeText || 'the stated service')}</strong>, and will not be processed for unrelated commercial purposes without separate, explicit consent.</p>
+        </div>
+
+        <div class="notice-section">
+          <div class="notice-section-title">3. How to Withdraw Consent</div>
+          <p>You have the right to withdraw your consent at any time under Section 6(4) of the DPDP Act. To withdraw, email us at <span class="notice-placeholder" contenteditable="true">[contact email]</span> or click the unsubscribe link in our communications. Withdrawal does not affect lawful processing conducted prior to withdrawal.</p>
+        </div>
+
+        <div class="notice-section">
+          <div class="notice-section-title">4. Grievance Redressal & Retention Period</div>
+          <p>If you have questions or grievances regarding your data, contact our Grievance Officer, <span class="notice-placeholder" contenteditable="true">[Grievance Officer Name]</span>, at <span class="notice-placeholder" contenteditable="true">[grievance email]</span>. Your personal data will be securely retained for <span class="notice-placeholder" contenteditable="true">[period e.g. 12 months]</span> or until consent is withdrawn, after which it will be irreversibly erased.</p>
+        </div>
+      `;
+    }
+
+    return { noticeHtml, excessCount: excessFields.length };
+  }
+
+  function getCleanNoticeText(containerEl) {
+    if (!containerEl) return '';
+    return containerEl.innerText || containerEl.textContent || '';
+  }
+
+  function escapeHtml(str) {
+    if (!str) return '';
+    return String(str)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#039;');
+  }
+
+  /* ==========================================================================
+     8. SAMPLE DATA (JUDGE TEST CASE)
+     ========================================================================== */
+  const JUDGE_SAMPLE_HTML = `<form id="subscriber-form" action="/submit" method="POST">
+  <input type="hidden" name="utm_source" value="google_ads">
+  <input type="hidden" name="csrf_token" value="d9f8a2e1">
+  
+  <label for="txtEmailAddr">Email Address *</label>
+  <input type="email" id="txtEmailAddr" name="txtEmailAddr" placeholder="name@domain.com" required>
+
+  <label for="cust_nm">Customer Name</label>
+  <input type="text" id="cust_nm" name="cust_nm" placeholder="Full name">
+
+  <label for="user_mob_no">Mobile Number</label>
+  <input type="tel" id="user_mob_no" name="user_mob_no" placeholder="9876543210">
+
+  <label for="dt_of_birth">Date of Birth</label>
+  <input type="date" id="dt_of_birth" name="dt_of_birth">
+
+  <label for="sex">Gender</label>
+  <select id="sex" name="sex">
+    <option value="">Select</option>
+    <option value="M">Male</option>
+    <option value="F">Female</option>
+    <option value="O">Other</option>
+  </select>
+
+  <label for="addr_line1">Residential Address</label>
+  <input type="text" id="addr_line1" name="addr_line1" placeholder="House/Flat No, Street">
+
+  <label for="pin_cd">PIN Code</label>
+  <input type="text" id="pin_cd" name="pin_cd" placeholder="400001">
+
+  <label for="aadhar_no">Aadhaar Card Number</label>
+  <input type="text" id="aadhar_no" name="aadhar_no" placeholder="12-digit UID">
+
+  <label for="ann_income">Annual Family Income</label>
+  <input type="number" id="ann_income" name="ann_income" placeholder="INR">
+
+  <label for="rel">Religion</label>
+  <input type="text" id="rel" name="rel">
+
+  <div class="consent-box">
+    <input type="checkbox" id="agree" name="agree" checked>
+    <label for="agree">I agree to receive daily promotional emails, SMS updates, and accept all terms & third-party partner sharing.</label>
+  </div>
+
+  <button type="submit">Subscribe Now</button>
+</form>`;
+
+  /* ==========================================================================
+     9. UI STATE & CONTROLLER
+     ========================================================================== */
+  const state = {
+    mode: 'html', // 'html' | 'list'
+    purpose: 'Newsletter signup',
+    activeLang: 'en', // 'en' | 'hi' | 'mr'
+    activeTableFilter: 'all', // 'all' | 'personal' | 'nonpersonal' | 'necessary' | 'unnecessary' | categoryId
+    rawCode: '',
+    evaluatedFields: [],
+    formFindings: [],
+    scoreData: null,
+    isOutOfDate: false
+  };
+
+  // DOM Elements
+  const elSidebar = document.getElementById('sidebar');
+  const elCollapseBtn = document.getElementById('collapseBtn');
+  const elMobileMenuBtn = document.getElementById('mobileMenuBtn');
+  const elTrustBadge = document.getElementById('trustBadge');
+  const elTrustPopover = document.getElementById('trustPopover');
+
+  const elBtnModeHtml = document.getElementById('btnModeHtml');
+  const elBtnModeList = document.getElementById('btnModeList');
+  const elPurposeInput = document.getElementById('purposeInput');
+  const elPurposeChips = document.getElementById('purposeChips');
+  const elFormCodeInput = document.getElementById('formCodeInput');
+  const elTextareaLabel = document.getElementById('textareaLabel');
+  const elTextareaHint = document.getElementById('textareaHint');
+  const elBtnAnalyze = document.getElementById('btnAnalyze');
+  const elBtnClear = document.getElementById('btnClear');
+  const elBtnLoadSample = document.getElementById('btnLoadSample');
+  const elInputErrorMsg = document.getElementById('inputErrorMsg');
+  const elOutOfDateBadge = document.getElementById('outOfDateBadge');
+
+  const elFieldsFoundBadge = document.getElementById('fieldsFoundBadge');
+  const elProfileHintLabel = document.getElementById('profileHintLabel');
+  const elCountPersonal = document.getElementById('countPersonal');
+  const elCountNonPersonal = document.getElementById('countNonPersonal');
+  const elCountNecessary = document.getElementById('countNecessary');
+  const elCountUnnecessary = document.getElementById('countUnnecessary');
+  const elSummaryTiles = document.querySelectorAll('.summary-tile');
+  const elFormAlertsContainer = document.getElementById('formAlertsContainer');
+  const elResultsTableBody = document.getElementById('resultsTableBody');
+
+  const elScoreGaugeArc = document.getElementById('scoreGaugeArc');
+  const elScoreNumber = document.getElementById('scoreNumber');
+  const elScoreBandPill = document.getElementById('scoreBandPill');
+  const elScoreStatusSentence = document.getElementById('scoreStatusSentence');
+  const elMinimisationRatioText = document.getElementById('minimisationRatioText');
+  const elScoreDeductionsList = document.getElementById('scoreDeductionsList');
+  const elTotalDeductionsCount = document.getElementById('totalDeductionsCount');
+
+  const elCategoriesGrid = document.getElementById('categoriesGrid');
+  const elCategoryActiveFilterBadge = document.getElementById('categoryActiveFilterBadge');
+
+  const elBtnLangEn = document.getElementById('btnLangEn');
+  const elBtnLangHi = document.getElementById('btnLangHi');
+  const elBtnLangMr = document.getElementById('btnLangMr');
+  const elNoticeContainer = document.getElementById('noticeContainer');
+  const elNoticeExcessOmittedNote = document.getElementById('noticeExcessOmittedNote');
+
+  const elBtnPrintPdf = document.getElementById('btnPrintPdf');
+  const elBtnDownloadTxt = document.getElementById('btnDownloadTxt');
+  const elBtnCopyNotice = document.getElementById('btnCopyNotice');
+  const elToastNotification = document.getElementById('toastNotification');
+  const elToastMessage = document.getElementById('toastMessage');
+
+  /* ==========================================================================
+     10. INITIALIZATION & EVENT HANDLERS
+     ========================================================================== */
+  function init() {
+    setupSidebar();
+    setupTrustBadge();
+    setupInputControls();
+    setupLanguageControls();
+    setupActionButtons();
+
+    // Auto load sample on first launch so judges immediately see functional UI
+    loadSampleForm();
+  }
+
+  function setupSidebar() {
+    elCollapseBtn.addEventListener('click', () => {
+      elSidebar.classList.toggle('collapsed');
+    });
+
+    elMobileMenuBtn.addEventListener('click', () => {
+      elSidebar.classList.toggle('mobile-open');
+    });
+
+    // Close mobile menu when clicking outside
+    document.addEventListener('click', (e) => {
+      if (window.innerWidth < 1024 && !elSidebar.contains(e.target) && !elMobileMenuBtn.contains(e.target)) {
+        elSidebar.classList.remove('mobile-open');
+      }
+    });
+
+    // Active link highlighting on scroll/click
+    const navItems = document.querySelectorAll('.sidebar-nav .nav-item');
+    navItems.forEach(item => {
+      item.addEventListener('click', (e) => {
+        navItems.forEach(n => n.classList.remove('active'));
+        item.classList.add('active');
+        if (window.innerWidth < 1024) {
+          elSidebar.classList.remove('mobile-open');
+        }
+      });
+    });
+  }
+
+  function setupTrustBadge() {
+    elTrustBadge.addEventListener('click', (e) => {
+      e.stopPropagation();
+      elTrustPopover.classList.toggle('show');
+    });
+
+    document.addEventListener('click', () => {
+      elTrustPopover.classList.remove('show');
+    });
+
+    elTrustPopover.addEventListener('click', (e) => {
+      e.stopPropagation();
+    });
+  }
+
+  function setupInputControls() {
+    // Mode toggles
+    elBtnModeHtml.addEventListener('click', () => {
+      if (state.mode === 'html') return;
+      state.mode = 'html';
+      elBtnModeHtml.classList.add('active');
+      elBtnModeList.classList.remove('active');
+      elTextareaLabel.childNodes[0].textContent = 'Form HTML markup ';
+      elTextareaHint.textContent = 'Inert DOMParser parsing';
+      elFormCodeInput.placeholder = `<form>\n  <input name="usr_nm" type="text">\n  <input name="mob_no" type="tel">\n  ...\n</form>`;
+      markOutOfDate();
+    });
+
+    elBtnModeList.addEventListener('click', () => {
+      if (state.mode === 'list') return;
+      state.mode = 'list';
+      elBtnModeList.classList.add('active');
+      elBtnModeHtml.classList.remove('active');
+      elTextareaLabel.childNodes[0].textContent = 'Field names list ';
+      elTextareaHint.textContent = 'One per line or comma-separated';
+      elFormCodeInput.placeholder = `full_name\nmob_no\ndob\nemail_id\naadhar_no`;
+      markOutOfDate();
+    });
+
+    // Purpose Chips
+    elPurposeChips.addEventListener('click', (e) => {
+      const chip = e.target.closest('.quick-chip');
+      if (!chip) return;
+      document.querySelectorAll('.quick-chip').forEach(c => c.classList.remove('active'));
+      chip.classList.add('active');
+      elPurposeInput.value = chip.dataset.purpose;
+      state.purpose = chip.dataset.purpose;
+      markOutOfDate();
+    });
+
+    elPurposeInput.addEventListener('input', () => {
+      state.purpose = elPurposeInput.value;
+      // sync quick chips
+      document.querySelectorAll('.quick-chip').forEach(c => {
+        if (c.dataset.purpose.toLowerCase() === elPurposeInput.value.toLowerCase().trim()) {
+          c.classList.add('active');
+        } else {
+          c.classList.remove('active');
+        }
+      });
+      markOutOfDate();
+    });
+
+    elFormCodeInput.addEventListener('input', () => {
+      markOutOfDate();
+    });
+
+    elBtnAnalyze.addEventListener('click', () => {
+      runAudit();
+    });
+
+    elBtnClear.addEventListener('click', () => {
+      elFormCodeInput.value = '';
+      elPurposeInput.value = '';
+      state.purpose = '';
+      document.querySelectorAll('.quick-chip').forEach(c => c.classList.remove('active'));
+      markOutOfDate();
+      runAudit();
+    });
+
+    elBtnLoadSample.addEventListener('click', () => {
+      loadSampleForm();
+    });
+
+    // Summary tile filter clicks
+    elSummaryTiles.forEach(tile => {
+      tile.addEventListener('click', () => {
+        const filter = tile.dataset.filter;
+        if (state.activeTableFilter === filter) {
+          state.activeTableFilter = 'all';
+          tile.classList.remove('active');
+        } else {
+          elSummaryTiles.forEach(t => t.classList.remove('active'));
+          tile.classList.add('active');
+          state.activeTableFilter = filter;
+        }
+        renderTable();
+      });
+    });
+  }
+
+  function setupLanguageControls() {
+    const langBtns = [
+      { btn: elBtnLangEn, lang: 'en' },
+      { btn: elBtnLangHi, lang: 'hi' },
+      { btn: elBtnLangMr, lang: 'mr' }
+    ];
+
+    langBtns.forEach(item => {
+      item.btn.addEventListener('click', () => {
+        langBtns.forEach(b => b.btn.classList.remove('active'));
+        item.btn.classList.add('active');
+        state.activeLang = item.lang;
+        updateNoticeTab();
+      });
+    });
+  }
+
+  function setupActionButtons() {
+    // Print PDF
+    elBtnPrintPdf.addEventListener('click', () => {
+      document.getElementById('printMetaLine').textContent =
+        `Generated locally via DPDP Form Auditor · Stated Purpose: ${state.purpose || 'Not specified'} · Date: ${new Date().toLocaleDateString()}`;
+      window.print();
+    });
+
+    // Download Text Report
+    elBtnDownloadTxt.addEventListener('click', () => {
+      downloadTxtReport();
+    });
+
+    // Copy Notice
+    elBtnCopyNotice.addEventListener('click', () => {
+      copyNoticeToClipboard();
+    });
+  }
+
+  function markOutOfDate() {
+    state.isOutOfDate = true;
+    elOutOfDateBadge.classList.add('show');
+  }
+
+  function loadSampleForm() {
+    state.mode = 'html';
+    elBtnModeHtml.classList.add('active');
+    elBtnModeList.classList.remove('active');
+    elTextareaLabel.childNodes[0].textContent = 'Form HTML markup ';
+    elTextareaHint.textContent = 'Inert DOMParser parsing';
+    elFormCodeInput.value = JUDGE_SAMPLE_HTML;
+
+    elPurposeInput.value = 'Newsletter signup';
+    state.purpose = 'Newsletter signup';
+    document.querySelectorAll('.quick-chip').forEach(c => {
+      if (c.dataset.purpose === 'Newsletter signup') c.classList.add('active');
+      else c.classList.remove('active');
+    });
+
+    runAudit();
+  }
+
+  /* ==========================================================================
+     11. AUDIT EXECUTION ENGINE
+     ========================================================================== */
+  function runAudit() {
+    elInputErrorMsg.classList.remove('show');
+    state.isOutOfDate = false;
+    elOutOfDateBadge.classList.remove('show');
+
+    const rawInput = elFormCodeInput.value.trim();
+    const purpose = elPurposeInput.value.trim();
+
+    if (!rawInput) {
+      elInputErrorMsg.textContent = 'Please paste your form HTML or enter field names.';
+      elInputErrorMsg.classList.add('show');
+      renderEmptyState();
+      return;
+    }
+
+    if (!purpose) {
+      elInputErrorMsg.textContent = 'Please specify what this form is for so we can assess data minimisation.';
+      elInputErrorMsg.classList.add('show');
+    }
+
+    // 1. Parse Input
+    let parsedData;
+    if (state.mode === 'html') {
+      parsedData = parseHtmlMode(rawInput);
+    } else {
+      parsedData = parseListMode(rawInput);
+    }
+
+    const fields = parsedData.fields;
+    const formFindings = parsedData.formLevelFindings;
+
+    if (fields.length === 0) {
+      elInputErrorMsg.textContent = 'No input fields could be extracted. Please check the pasted HTML.';
+      elInputErrorMsg.classList.add('show');
+      renderEmptyState();
+      return;
+    }
+
+    // 2. Identify Purpose Profile
+    const profile = findPurposeProfile(purpose);
+    elProfileHintLabel.textContent = `Profile: ${profile.name}`;
+
+    // 3. Evaluate Fields
+    const evaluatedFields = evaluateFields(fields, profile);
+
+    // Sort order: excess first, then review, needed, not-personal
+    const verdictPriority = { 'excess': 1, 'review': 2, 'needed': 3, 'not-personal': 4 };
+    evaluatedFields.sort((a, b) => (verdictPriority[a.verdict] || 5) - (verdictPriority[b.verdict] || 5));
+
+    // 4. Calculate Compliance Score
+    const scoreData = calculateScore(evaluatedFields, formFindings);
+
+    // Save in state
+    state.evaluatedFields = evaluatedFields;
+    state.formFindings = formFindings;
+    state.scoreData = scoreData;
+
+    // 5. Update UI Components
+    renderSummaryTiles(scoreData.counts);
+    renderFormAlerts(formFindings);
+    renderTable();
+    renderScoreCard(scoreData);
+    renderCategoriesCard(evaluatedFields);
+    updateNoticeTab();
+  }
+
+  /* ==========================================================================
+     12. UI RENDERERS
+     ========================================================================== */
+  function renderEmptyState() {
+    elFieldsFoundBadge.textContent = '0 fields';
+    elCountPersonal.textContent = '0';
+    elCountNonPersonal.textContent = '0';
+    elCountNecessary.textContent = '0';
+    elCountUnnecessary.textContent = '0';
+    elFormAlertsContainer.innerHTML = '';
+    elResultsTableBody.innerHTML = `
+      <tr>
+        <td colspan="5">
+          <div class="table-empty-state">
+            <div class="empty-icon-wrap">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+            </div>
+            <p style="font-weight: 600; color: var(--ink);">Paste a form to begin analysis</p>
+            <p style="font-size: 13px; max-width: 400px;">We list every input field, classify it under DPDP data categories, and flag excess items with redline annotations.</p>
+          </div>
+        </td>
+      </tr>
+    `;
+    renderScoreCard({ score: 0, band: 'Awaiting', bandClass: '', statusSentence: 'Paste form markup and click Analyze.', ratio: 0, deductions: [] });
+    elCategoriesGrid.innerHTML = '';
+    elNoticeContainer.innerHTML = '<p style="color: var(--ink-3);">Run an analysis to generate the compliance draft notice.</p>';
+  }
+
+  function renderSummaryTiles(counts) {
+    elFieldsFoundBadge.textContent = `${counts.total} field${counts.total === 1 ? '' : 's'}`;
+    elCountPersonal.textContent = counts.personal;
+    elCountNonPersonal.textContent = counts.nonpersonal;
+    elCountNecessary.textContent = counts.necessary;
+    elCountUnnecessary.textContent = counts.unnecessary;
+  }
+
+  function renderFormAlerts(findings) {
+    elFormAlertsContainer.innerHTML = '';
+    if (!findings || findings.length === 0) return;
+
+    findings.forEach(f => {
+      const isDanger = f.type === 'danger';
+      const div = document.createElement('div');
+      div.className = `compliance-alert ${isDanger ? 'alert-danger' : 'alert-warning'}`;
+      div.innerHTML = `
+        <div class="alert-icon" aria-hidden="true">
+          ${isDanger ?
+            '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>' :
+            '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>'
+          }
+        </div>
+        <div>
+          <div class="alert-title">${escapeHtml(f.title)}</div>
+          <div>${escapeHtml(f.detail)}</div>
+        </div>
+      `;
+      elFormAlertsContainer.appendChild(div);
+    });
+  }
+
+  function renderTable() {
+    const fields = state.evaluatedFields;
+    const filter = state.activeTableFilter;
+
+    // Filter fields
+    const filtered = fields.filter(f => {
+      if (filter === 'all') return true;
+      if (filter === 'personal') return f.isPersonal;
+      if (filter === 'nonpersonal') return !f.isPersonal;
+      if (filter === 'necessary') return f.verdict === 'needed';
+      if (filter === 'unnecessary') return f.verdict === 'excess';
+      // Otherwise category filter
+      return f.category.id === filter;
+    });
+
+    if (filtered.length === 0) {
+      elResultsTableBody.innerHTML = `
+        <tr>
+          <td colspan="5" style="text-align: center; padding: 24px; color: var(--ink-3);">
+            No fields match the selected filter. <a href="#" id="resetFilterBtn">Reset filter</a>
+          </td>
+        </tr>
+      `;
+      const btn = document.getElementById('resetFilterBtn');
+      if (btn) {
+        btn.addEventListener('click', (e) => {
+          e.preventDefault();
+          state.activeTableFilter = 'all';
+          elSummaryTiles.forEach(t => t.classList.remove('active'));
+          renderTable();
+        });
+      }
+      return;
+    }
+
+    let rowsHtml = '';
+    filtered.forEach(f => {
+      const isExcess = f.verdict === 'excess';
+      const isReview = f.verdict === 'review';
+      const rowClass = isExcess ? 'row-excess' : isReview ? 'row-review' : '';
+
+      // Verdict badge
+      let verdictBadge = '';
+      if (f.verdict === 'needed') {
+        verdictBadge = '<span class="badge badge-needed"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg> Yes</span>';
+      } else if (f.verdict === 'excess') {
+        verdictBadge = '<span class="badge badge-excess"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg> No (Excess)</span>';
+      } else if (f.verdict === 'review') {
+        verdictBadge = '<span class="badge badge-review"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg> Review</span>';
+      } else {
+        verdictBadge = '<span class="badge badge-neutral"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><circle cx="12" cy="12" r="10"/><line x1="8" y1="12" x2="16" y2="12"/></svg> N/A</span>';
+      }
+
+      // Personal badge
+      const personalBadge = f.isPersonal ?
+        '<span class="badge" style="background: #EFE9FB; color: #4B2E91;">Yes</span>' :
+        '<span class="badge badge-neutral">No</span>';
+
+      // Sensitive indicator
+      const sensitiveBadge = f.category.sensitive ?
+        '<span class="badge-sensitive" title="Higher-risk personal data under DPDP standards">Sensitive</span>' : '';
+
+      rowsHtml += `
+        <tr class="${rowClass}">
+          <td data-label="Field">
+            <div class="field-name-mono">${escapeHtml(f.rawName)}</div>
+            <div class="field-label-sub">${escapeHtml(f.label || f.type)}</div>
+          </td>
+          <td data-label="Category">
+            <span class="category-chip ${f.category.class}">
+              ${escapeHtml(f.category.label)}
+            </span>
+            ${sensitiveBadge}
+          </td>
+          <td data-label="Personal?">${personalBadge}</td>
+          <td data-label="Needed?">${verdictBadge}</td>
+          <td data-label="Reason">
+            <div class="reason-text">${escapeHtml(f.reason)}</div>
+            <div class="matched-by-hint">Matched by: ${escapeHtml(f.matchedBy)}</div>
+          </td>
+        </tr>
+      `;
+    });
+
+    elResultsTableBody.innerHTML = rowsHtml;
+  }
+
+  function renderScoreCard(scoreData) {
+    const score = scoreData.score || 0;
+    elScoreNumber.textContent = scoreData.band === 'Awaiting' ? '--' : score;
+    elScoreBandPill.textContent = scoreData.band;
+    elScoreBandPill.className = `score-band-pill ${scoreData.bandClass || ''}`;
+    elScoreStatusSentence.textContent = scoreData.statusSentence;
+
+    // SVG Circular Ring Offset (perimeter = 2 * PI * 70 = 439.82)
+    const circumference = 440;
+    if (scoreData.band === 'Awaiting') {
+      elScoreGaugeArc.style.strokeDashoffset = circumference;
+      elScoreGaugeArc.style.stroke = 'var(--surface-alt)';
+    } else {
+      const offset = circumference - (score / 100) * circumference;
+      elScoreGaugeArc.style.strokeDashoffset = offset;
+
+      // Color by band
+      let strokeColor = 'var(--score-strong)';
+      if (score < 40) strokeColor = 'var(--score-poor)';
+      else if (score < 65) strokeColor = 'var(--score-weak)';
+      else if (score < 85) strokeColor = 'var(--score-fair)';
+      elScoreGaugeArc.style.stroke = strokeColor;
+    }
+
+    // Minimisation Ratio
+    elMinimisationRatioText.textContent = `Minimisation ratio: ${scoreData.ratio}%`;
+
+    // Deductions breakdown
+    const deductions = scoreData.deductions || [];
+    elTotalDeductionsCount.textContent = `${deductions.length} deduction${deductions.length === 1 ? '' : 's'}`;
+
+    if (deductions.length === 0) {
+      elScoreDeductionsList.innerHTML = `
+        <li class="calc-item">
+          <span>Base score</span>
+          <span class="calc-pts pts-positive">100</span>
+        </li>
+        <li class="calc-item" style="color: var(--ink-3);">No deductions. Perfect minimisation.</li>
+      `;
+    } else {
+      let listHtml = `
+        <li class="calc-item">
+          <span>Starting base score</span>
+          <span class="calc-pts">100</span>
+        </li>
+      `;
+      deductions.forEach(d => {
+        listHtml += `
+          <li class="calc-item">
+            <span>${escapeHtml(d.reason)}</span>
+            <span class="calc-pts pts-negative">${d.pts}</span>
+          </li>
+        `;
+      });
+      elScoreDeductionsList.innerHTML = listHtml;
+    }
+  }
+
+  function renderCategoriesCard(fields) {
+    // Count fields per category
+    const counts = {};
+    const fieldNamesByCategory = {};
+
+    Object.keys(CATEGORIES).forEach(k => {
+      counts[k] = 0;
+      fieldNamesByCategory[k] = [];
+    });
+
+    fields.forEach(f => {
+      const catId = f.category.id;
+      if (counts[catId] !== undefined) {
+        counts[catId]++;
+        if (fieldNamesByCategory[catId].length < 3) {
+          fieldNamesByCategory[catId].push(f.rawName);
+        }
+      }
+    });
+
+    // 7 key categories for display
+    const displayCatKeys = ['identity', 'contact', 'location', 'financial', 'health', 'children', 'nonpersonal'];
+    let gridHtml = '';
+
+    displayCatKeys.forEach(k => {
+      const cat = CATEGORIES[k];
+      const count = counts[k] || 0;
+      const tags = fieldNamesByCategory[k] || [];
+      const isActive = state.activeTableFilter === k;
+
+      let tagsHtml = '';
+      tags.forEach(t => {
+        tagsHtml += `<span class="cat-mini-tag">${escapeHtml(t)}</span>`;
+      });
+      if (count > 3) {
+        tagsHtml += `<span class="cat-mini-tag">+${count - 3}</span>`;
+      }
+
+      gridHtml += `
+        <div class="category-card ${isActive ? 'active' : ''}" data-cat="${cat.id}" tabindex="0" role="button" title="Click to filter table by ${cat.label}">
+          <div class="cat-card-header">
+            <span class="cat-card-title">${escapeHtml(cat.label)}</span>
+            <span class="cat-count">${count}</span>
+          </div>
+          <div class="cat-field-tags">
+            ${tagsHtml || '<span style="font-size:10px; color:var(--ink-3);">None</span>'}
+          </div>
+        </div>
+      `;
+    });
+
+    elCategoriesGrid.innerHTML = gridHtml;
+
+    // Attach click events to filter by category
+    elCategoriesGrid.querySelectorAll('.category-card').forEach(card => {
+      card.addEventListener('click', () => {
+        const catId = card.dataset.cat;
+        if (state.activeTableFilter === catId) {
+          state.activeTableFilter = 'all';
+          elCategoryActiveFilterBadge.textContent = 'All categories';
+        } else {
+          state.activeTableFilter = catId;
+          elCategoryActiveFilterBadge.textContent = CATEGORIES[catId].label;
+          elSummaryTiles.forEach(t => t.classList.remove('active'));
+        }
+        renderCategoriesCard(state.evaluatedFields);
+        renderTable();
+      });
+    });
+  }
+
+  function updateNoticeTab() {
+    const { noticeHtml, excessCount } = renderConsentNotice(state.evaluatedFields, state.purpose, state.activeLang);
+    elNoticeContainer.innerHTML = noticeHtml;
+    elNoticeContainer.setAttribute('lang', state.activeLang);
+
+    if (excessCount > 0) {
+      elNoticeExcessOmittedNote.style.display = 'block';
+      elNoticeExcessOmittedNote.textContent =
+        `${excessCount} excess field${excessCount === 1 ? '' : 's'} omitted from this notice. Remove them from your form or establish statutory justification before collecting.`;
+    } else {
+      elNoticeExcessOmittedNote.style.display = 'none';
+    }
+  }
+
+  /* ==========================================================================
+     13. EXPORT IMPLEMENTATIONS
+     ========================================================================== */
+  function copyNoticeToClipboard() {
+    const text = getCleanNoticeText(elNoticeContainer);
+    if (!text || text.includes('Run an analysis')) {
+      showToast('Please analyze a form first before copying.');
+      return;
+    }
+
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(() => {
+        showToast('Consent notice copied to clipboard!');
+      }).catch(() => {
+        fallbackCopyText(text);
+      });
+    } else {
+      fallbackCopyText(text);
+    }
+  }
+
+  function fallbackCopyText(text) {
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.position = 'fixed';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.select();
+    try {
+      document.execCommand('copy');
+      showToast('Consent notice copied to clipboard!');
+    } catch (err) {
+      showToast('Failed to copy. Please select and copy manually.');
+    }
+    document.body.removeChild(ta);
+  }
+
+  function downloadTxtReport() {
+    const score = state.scoreData ? state.scoreData.score : '--';
+    const band = state.scoreData ? state.scoreData.band : '--';
+    const ratio = state.scoreData ? state.scoreData.ratio : '--';
+    const dateStr = new Date().toISOString().split('T')[0];
+    const purposeSlug = (state.purpose || 'audit').toLowerCase().replace(/[^a-z0-9]+/g, '-');
+
+    let report = `====================================================================\n`;
+    report += `DPDP FORM COMPLIANCE AUDIT REPORT\n`;
+    report += `In-Browser Personal Data Minimisation Audit under DPDP Act 2023\n`;
+    report += `====================================================================\n\n`;
+    report += `Date: ${dateStr}\n`;
+    report += `Stated Purpose: ${state.purpose || 'Not specified'}\n`;
+    report += `DPDP Compliance Score: ${score}/100 (${band})\n`;
+    report += `Data Minimisation Ratio: ${ratio}%\n\n`;
+
+    // Form Level Findings
+    if (state.formFindings && state.formFindings.length > 0) {
+      report += `--------------------------------------------------------------------\n`;
+      report += `FORM-LEVEL COMPLIANCE FINDINGS\n`;
+      report += `--------------------------------------------------------------------\n`;
+      state.formFindings.forEach(f => {
+        report += `[!] ${f.title}\n    ${f.detail}\n\n`;
+      });
+    }
+
+    // Table of fields
+    report += `--------------------------------------------------------------------\n`;
+    report += `FIELD-BY-FIELD AUDIT BREAKDOWN\n`;
+    report += `--------------------------------------------------------------------\n`;
+    report += `${'FIELD NAME'.padEnd(20)} | ${'CATEGORY'.padEnd(16)} | ${'VERDICT'.padEnd(12)} | REASON\n`;
+    report += `-`.repeat(80) + `\n`;
+
+    state.evaluatedFields.forEach(f => {
+      const v = f.verdict === 'needed' ? 'NEEDED' : f.verdict === 'excess' ? 'EXCESS' : f.verdict === 'review' ? 'REVIEW' : 'NON-DATA';
+      report += `${f.rawName.padEnd(20)} | ${f.category.label.padEnd(16)} | ${v.padEnd(12)} | ${f.reason}\n`;
+    });
+    report += `\n`;
+
+    // Consent notice
+    report += `--------------------------------------------------------------------\n`;
+    report += `DRAFT CONSENT NOTICE (Language: ${state.activeLang.toUpperCase()})\n`;
+    report += `--------------------------------------------------------------------\n`;
+    report += getCleanNoticeText(elNoticeContainer) + `\n\n`;
+
+    // Disclaimer
+    report += `--------------------------------------------------------------------\n`;
+    report += `DISCLAIMER\n`;
+    report += `This report is a rule-based automated audit for technical guidance\n`;
+    report += `under the Digital Personal Data Protection Act, 2023. It does not\n`;
+    report += `constitute formal legal advice. Consult legal counsel before deployment.\n`;
+    report += `====================================================================\n`;
+
+    const blob = new Blob([report], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `dpdp-audit-${purposeSlug}-${dateStr}.txt`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+
+    showToast('Report downloaded successfully!');
+  }
+
+  function showToast(msg) {
+    elToastMessage.textContent = msg;
+    elToastNotification.classList.add('show');
+    setTimeout(() => {
+      elToastNotification.classList.remove('show');
+    }, 2200);
+  }
+
+  // Start app
+  document.addEventListener('DOMContentLoaded', init);
+
+})();
+</script>
+
+</body>
+</html>

@@ -1,0 +1,670 @@
+"""
+Script to generate and validate shared/rules_dictionary.json
+Single source of truth for the DPDP Form Auditor rules engine.
+"""
+
+import json
+from pathlib import Path
+
+DICTIONARY_DATA = {
+    "version": "1.0.0",
+    "metadata": {
+        "title": "DPDP Rules & Dictionary Engine Specification",
+        "description": "Standardized keywords, regexes, qualifier guards, purpose profiles, and multilingual consent templates for the Digital Personal Data Protection Act 2023.",
+        "act_reference": "Digital Personal Data Protection Act, 2023 (Act No. 22 of 2023, Republic of India)"
+    },
+    "categories": [
+        {
+            "id": "identity",
+            "name": "Identity",
+            "glyph": "person",
+            "sensitive": False,
+            "risk_tier": "standard",
+            "color": "#4B2E91",
+            "bg_color": "#EFE9FB",
+            "description": "Individual identification data such as name, username, title, and relations."
+        },
+        {
+            "id": "contact",
+            "name": "Contact",
+            "glyph": "at-sign",
+            "sensitive": False,
+            "risk_tier": "standard",
+            "color": "#0B5F7A",
+            "bg_color": "#E0F2F8",
+            "description": "Direct communication channels including email addresses, phone, and messaging handles."
+        },
+        {
+            "id": "government_id",
+            "name": "Government ID",
+            "glyph": "id-card",
+            "sensitive": True,
+            "risk_tier": "high",
+            "color": "#8A2D0B",
+            "bg_color": "#FBE9DF",
+            "description": "Official national identifiers (Aadhaar, PAN, Passport, Voter ID, Driving Licence)."
+        },
+        {
+            "id": "financial",
+            "name": "Financial",
+            "glyph": "rupee",
+            "sensitive": True,
+            "risk_tier": "high",
+            "color": "#7A3B00",
+            "bg_color": "#FBEBD3",
+            "description": "Bank account numbers, payment cards, UPI IDs, income brackets, and financial balances."
+        },
+        {
+            "id": "health",
+            "name": "Health",
+            "glyph": "heart-pulse",
+            "sensitive": True,
+            "risk_tier": "high",
+            "color": "#9D174D",
+            "bg_color": "#FCE7F0",
+            "description": "Physical/mental health data, medical history, disability status, prescriptions, blood group."
+        },
+        {
+            "id": "biometric",
+            "name": "Biometric",
+            "glyph": "fingerprint",
+            "sensitive": True,
+            "risk_tier": "high",
+            "color": "#701A75",
+            "bg_color": "#FDF2F8",
+            "description": "Biological data including fingerprints, retina/iris scans, and facial recognition features."
+        },
+        {
+            "id": "children_data",
+            "name": "Children's Data",
+            "glyph": "child",
+            "sensitive": True,
+            "risk_tier": "high",
+            "color": "#9A3412",
+            "bg_color": "#FDE8D8",
+            "description": "Personal data relating to minors (under 18 years) requiring verifiable parental consent."
+        },
+        {
+            "id": "demographic",
+            "name": "Demographic & Personal Traits",
+            "glyph": "users",
+            "sensitive": True,
+            "risk_tier": "high",
+            "color": "#1E4E8C",
+            "bg_color": "#E3EDFA",
+            "description": "Personal attributes including date of birth, age, gender, caste, religion, and marital status."
+        },
+        {
+            "id": "credentials",
+            "name": "Credentials & Authentication",
+            "glyph": "key",
+            "sensitive": True,
+            "risk_tier": "high",
+            "color": "#374151",
+            "bg_color": "#E9ECF1",
+            "description": "Authentication secrets such as passwords, PINs, OTPs, passcodes, and security questions."
+        },
+        {
+            "id": "location",
+            "name": "Location",
+            "glyph": "map-pin",
+            "sensitive": False,
+            "risk_tier": "standard",
+            "color": "#3F6212",
+            "bg_color": "#EAF3D9",
+            "description": "Physical location details including street address, postal PIN code, city, and GPS coordinates."
+        },
+        {
+            "id": "employment_education",
+            "name": "Employment & Education",
+            "glyph": "graduation-cap",
+            "sensitive": False,
+            "risk_tier": "standard",
+            "color": "#065F46",
+            "bg_color": "#ECFDF5",
+            "description": "Resume, qualifications, work history, employer details, roll numbers, and academic records."
+        },
+        {
+            "id": "behavioral_preference",
+            "name": "Behavioral & Preferences",
+            "glyph": "smile",
+            "sensitive": False,
+            "risk_tier": "low",
+            "color": "#155E75",
+            "bg_color": "#ECFEFF",
+            "description": "Ratings, interests, hobbies, satisfaction feedback, and dietary preferences."
+        },
+        {
+            "id": "technical",
+            "name": "Technical & Device",
+            "glyph": "cpu",
+            "sensitive": False,
+            "risk_tier": "standard",
+            "color": "#374151",
+            "bg_color": "#EEF1F5",
+            "description": "Telemetry parameters such as IP addresses, browser user-agent, cookies, and device identifiers."
+        },
+        {
+            "id": "not_personal",
+            "name": "Not Personal Data",
+            "glyph": "minus-circle",
+            "sensitive": False,
+            "risk_tier": "none",
+            "color": "#5A6780",
+            "bg_color": "#EAEEF4",
+            "description": "Non-identifying technical tokens, CSRF nonces, buttons, or non-personal organizational entities."
+        }
+    ],
+    "qualifier_guards": [
+        {
+            "tokens": ["company_name", "companyname", "company", "firm_name", "business_name", "org_name", "organization_name", "corporate_name", "enterprise_name"],
+            "override_category": "not_personal",
+            "sensitive": False,
+            "reason": "Entity/company name represents an organization or corporate entity rather than an individual's personal identity."
+        },
+        {
+            "tokens": ["product_name", "productname", "item_name", "itemname", "sku_name", "commodity_name", "goods_name", "brand_name"],
+            "override_category": "not_personal",
+            "sensitive": False,
+            "reason": "Product or commercial item name does not identify an individual human person."
+        },
+        {
+            "tokens": ["coupon_name", "couponname", "coupon_code", "couponcode", "promo_code", "discount_code", "voucher_code", "voucher_name"],
+            "override_category": "not_personal",
+            "sensitive": False,
+            "reason": "Promotional or discount code is a transactional business token, not personal data."
+        },
+        {
+            "tokens": ["ip_address", "ipaddress", "client_ip", "remote_ip", "server_ip", "user_ip", "ip_addr", "ipaddr"],
+            "override_category": "technical",
+            "sensitive": False,
+            "reason": "IP address is a technical networking parameter and is guarded against misclassification as a physical geographic address."
+        },
+        {
+            "tokens": ["domain_name", "domainname", "host_name", "hostname", "website_name", "site_name"],
+            "override_category": "not_personal",
+            "sensitive": False,
+            "reason": "Internet domain or web host is an online infrastructure artifact, not an individual's identity."
+        },
+        {
+            "tokens": ["file_name", "filename", "table_name", "column_name", "db_name", "database_name"],
+            "override_category": "not_personal",
+            "sensitive": False,
+            "reason": "Software or database schema identifier with no personal data."
+        }
+    ],
+    "regex_patterns": {
+        "aadhaar": {
+            "pattern": r"^[2-9]{1}[0-9]{3}[\s-]?[0-9]{4}[\s-]?[0-9]{4}$",
+            "description": "12-digit Indian Aadhaar number (cannot start with 0 or 1, optional space or hyphen separators)",
+            "category": "government_id",
+            "sensitive": True
+        },
+        "pan": {
+            "pattern": r"^[A-Z]{5}[0-9]{4}[A-Z]{1}$",
+            "description": "10-character Indian Permanent Account Number (5 uppercase alphabets, 4 digits, 1 alphabet)",
+            "category": "government_id",
+            "sensitive": True
+        },
+        "pincode": {
+            "pattern": r"^[1-9][0-9]{5}$|^[1-9][0-9]{2}\s[0-9]{3}$",
+            "description": "6-digit Indian Postal Index Number (PIN Code, cannot start with 0)",
+            "category": "location",
+            "sensitive": False
+        },
+        "phone": {
+            "pattern": r"^(\+91[\-\s]?)?[6-9]\d{9}$",
+            "description": "10-digit Indian mobile number optionally prefixed with +91 or leading separator",
+            "category": "contact",
+            "sensitive": False
+        },
+        "voter_id": {
+            "pattern": r"^[A-Z]{3}[0-9]{7}$",
+            "description": "Indian Election Photo Identity Card (EPIC / Voter ID, 3 alphabets followed by 7 digits)",
+            "category": "government_id",
+            "sensitive": True
+        },
+        "passport": {
+            "pattern": r"^[A-PR-WYa-pr-wy][1-9]\d\s?[0-9]{4}[1-9]$",
+            "description": "Indian Passport booklet number format",
+            "category": "government_id",
+            "sensitive": True
+        },
+        "ifsc": {
+            "pattern": r"^[A-Z]{4}0[A-Z0-9]{6}$",
+            "description": "11-character Indian Financial System Code (IFSC, 5th character is always 0)",
+            "category": "financial",
+            "sensitive": True
+        },
+        "email": {
+            "pattern": r"^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$",
+            "description": "Standard RFC 5322 electronic mail address pattern",
+            "category": "contact",
+            "sensitive": False
+        }
+    },
+    "category_keywords": {
+        "identity": {
+            "tokens": [
+                "name", "full_name", "first_name", "last_name", "middle_name", "fname", "lname",
+                "usr_nm", "username", "fullname", "display_name", "salutation", "applicant_name",
+                "candidate_name", "customer_name", "client_name", "attendee_name", "patient_name",
+                "visitor_name", "subscriber_name", "father_name", "mother_name", "spouse_name",
+                "alias", "nickname", "profile_name"
+            ],
+            "hinglish": [
+                "naam", "nam", "pura_naam", "shubh_naam", "pehla_naam", "antim_naam", "nav",
+                "sampurna_nav", "adhikrut_nav", "pitaji_ka_naam", "mataji_ka_naam", "shriman",
+                "shrimati", "नाम", "पहला नाम", "अंतिम नाम", "पिता का नाम", "माता का नाम", "नाव", "पूर्ण नाव"
+            ],
+            "types": ["text"],
+            "autocomplete": ["name", "given-name", "family-name", "additional-name", "nickname", "username"]
+        },
+        "contact": {
+            "tokens": [
+                "email", "e_mail", "emailid", "email_id", "email_address", "mail", "mail_id",
+                "usr_email", "phone", "mobile", "mob", "mob_no", "cell", "telephone", "tel",
+                "tel_no", "contact_no", "contact_number", "contact_num", "phone_number",
+                "phone_num", "userphone", "whatsapp", "whatsapp_no", "alternate_phone", "alt_phone",
+                "emergency_phone", "fax", "telegram_handle"
+            ],
+            "hinglish": [
+                "dooranbhash", "dhoorwash", "durbhash", "sampark_number", "sampark_kramank",
+                "chalbhash", "bramhanadhwani", "durdhwani", "patra", "e_patra", "vidyut_patra",
+                "e_daak", "vidyut_daak", "durvan", "मोबाइल", "फ़ोन", "फोन", "दूरभाष", "संपर्क क्रमांक", "भ्रमणध्वनी", "ईमेल", "ई-मेल"
+            ],
+            "types": ["email", "tel"],
+            "autocomplete": ["email", "tel", "tel-national", "tel-country-code", "tel-area-code", "tel-local"]
+        },
+        "government_id": {
+            "tokens": [
+                "aadhaar", "aadhar", "aadhaar_no", "aadhar_no", "aadhaar_num", "aadhar_num", "uidai", "uid",
+                "adhar", "adharno", "aadhar_card", "aadhaar_card", "pan", "pan_card", "pancard", "pan_number",
+                "pan_num", "voter_id", "voter_card", "epic", "epic_no", "driving_licence", "driving_license",
+                "dl", "dl_no", "dl_num", "passport", "passport_no", "ration_card", "ssn", "national_id"
+            ],
+            "hinglish": [
+                "adhar_card", "aadharkramank", "pan_patra", "chunav_card", "matdan_kramank",
+                "vahan_chalak_parwana", "parpatra", "aadhaar_kramank", "आधार", "आधार कार्ड", "आधार क्रमांक",
+                "पैन कार्ड", "पॅन कार्ड", "मतदान ओळखपत्र"
+            ],
+            "types": [],
+            "autocomplete": []
+        },
+        "financial": {
+            "tokens": [
+                "bank", "bank_account", "account_no", "acc_no", "bank_acc", "account_num",
+                "ifsc", "ifsc_code", "micr", "branch_code", "credit_card", "debit_card",
+                "card_number", "card_num", "card_no", "cvv", "cvc", "card_exp", "card_expiry",
+                "upi", "upi_id", "vpa", "salary", "income", "annual_income", "monthly_income",
+                "income_range", "net_worth", "earnings", "ctc", "tax_return", "itr", "itr_ack"
+            ],
+            "hinglish": [
+                "khata", "khata_number", "khata_kramank", "vetan", "aavak", "utpanna", "bhandval",
+                "rokad", "dhan", "kosh", "पगार", "उत्पन्न", "वेतन", "खाते क्रमांक", "बँक खाते"
+            ],
+            "types": [],
+            "autocomplete": ["cc-number", "cc-exp", "cc-exp-month", "cc-exp-year", "cc-csc", "cc-type"]
+        },
+        "health": {
+            "tokens": [
+                "health", "medical", "medical_history", "blood", "blood_group", "bloodgroup",
+                "diagnosis", "disease", "prescription", "disability", "allergy", "allergies",
+                "patient_id", "symptoms", "dosage", "vaccination", "vaccine", "treatment",
+                "health_insurance", "policy_no", "mental_health", "clinical_record"
+            ],
+            "hinglish": [
+                "swasthya", "aarogya", "swasthya_vivaran", "rakt_samuh", "raktagut", "rakta_gat",
+                "divyang", "upchar", "bima_kramank", "स्वास्थ", "आरोग्य", "रक्त गट", "अपंगत्व"
+            ],
+            "types": [],
+            "autocomplete": []
+        },
+        "biometric": {
+            "tokens": [
+                "biometric", "fingerprint", "thumb_impression", "iris", "iris_scan", "retina",
+                "facial_recognition", "face_scan", "voice_print", "voiceprint", "dna", "palm_print"
+            ],
+            "hinglish": [
+                "angutha", "anguthe_ka_nishan", "nayan_scan", "chehre_ka_scan", "अंगठा", "बोटांचे ठसे"
+            ],
+            "types": [],
+            "autocomplete": []
+        },
+        "children_data": {
+            "tokens": [
+                "child", "children", "minor", "student", "student_name", "student_dob", "kid",
+                "school", "class", "grade", "standard", "guardian", "guardian_name", "parent_name",
+                "father_name", "mother_name", "parent_consent", "parental_consent", "parent_phone",
+                "parent_email", "roll_number", "roll_no", "pupil"
+            ],
+            "hinglish": [
+                "balak", "bacha", "bachhe", "shishu", "mulga", "mulgi", "lekr", "palak",
+                "shala", "vidyarthi", "vidyarthi_nav", "vidyalay", "मुले", "पालक", "विद्यार्थी", "शाळा"
+            ],
+            "types": [],
+            "autocomplete": []
+        },
+        "demographic": {
+            "tokens": [
+                "dob", "date_of_birth", "birth_date", "birthdate", "usr_dob", "dob_dd", "dobdate",
+                "age", "gender", "sex", "gender_sel", "religion", "caste", "marital", "marital_status",
+                "ethnicity", "race", "nationality", "community", "tribe", "sexual_orientation",
+                "political_opinion", "political_affiliation"
+            ],
+            "hinglish": [
+                "janm_tithi", "janm_tarikh", "janmadin", "janm_dinank", "aayu", "vay", "janmatithi",
+                "janmatarikh", "ling", "jaati", "dharma", "sampradaya", "vaivahik_sthiti",
+                "जन्म तिथि", "जन्म तारीख", "वय", "आयु", "लिंग", "धर्म", "जात", "वैवाहिक स्थिती"
+            ],
+            "types": ["date"],
+            "autocomplete": ["bday", "bday-day", "bday-month", "bday-year", "sex"]
+        },
+        "credentials": {
+            "tokens": [
+                "password", "pwd", "pass", "passwd", "pin", "security_pin", "otp", "one_time_password",
+                "secret", "security_question", "secret_answer", "security_code", "auth_token", "passcode"
+            ],
+            "hinglish": [
+                "guptha_shabd", "chabi", "sanket_shabd", "suraksha_code", "गुप्त शब्द", "पासवर्ड"
+            ],
+            "types": ["password"],
+            "autocomplete": ["current-password", "new-password", "one-time-code"]
+        },
+        "location": {
+            "tokens": [
+                "address", "addr", "addr_line1", "addr_line2", "street", "street_address",
+                "city", "town", "state", "province", "pincode", "pin_code", "pin", "zip",
+                "zipcode", "postal", "postal_code", "country", "latitude", "longitude",
+                "geo", "gps", "landmark", "flat_no", "house_no", "apartment"
+            ],
+            "hinglish": [
+                "pata", "ghar_ka_pata", "sthayi_pata", "shehar", "shahar", "rajya", "zila",
+                "jilha", "gaon", "gav", "pin_kramank", "pattasar", "nagari", "गल्ली", "पत्ता", "पता", "शहर", "राज्य", "पिन कोड"
+            ],
+            "types": [],
+            "autocomplete": ["street-address", "address-line1", "address-line2", "address-level1", "address-level2", "postal-code", "country", "country-name"]
+        },
+        "employment_education": {
+            "tokens": [
+                "resume", "cv", "portfolio", "experience", "work_experience", "education",
+                "qualification", "degree", "university", "college", "institute", "marks",
+                "cgpa", "percentage", "skills", "designation", "job_title", "current_company",
+                "notice_period", "employer", "roll_no", "registration_no", "certifications"
+            ],
+            "hinglish": [
+                "shikshan", "anubhav", "padavi", "kaushalya", "shaikshanik_patrata", "karyalay",
+                "शिक्षण", "अनुभव", "पदवी"
+            ],
+            "types": ["file"],
+            "autocomplete": ["organization", "organization-title"]
+        },
+        "behavioral_preference": {
+            "tokens": [
+                "rating", "score", "feedback", "comment", "review", "satisfaction", "interest",
+                "interests", "hobby", "hobbies", "preference", "preferences", "diet", "dietary",
+                "dietary_needs", "food_preference", "t_shirt_size", "shirt_size", "language_preference"
+            ],
+            "hinglish": [
+                "pratikriya", "aahar_pasanti", "aahar", "pasanti", "bhasha_pasanti", "प्रतिक्रिया", "पसंती"
+            ],
+            "types": [],
+            "autocomplete": ["language"]
+        },
+        "technical": {
+            "tokens": [
+                "ip", "ip_address", "user_agent", "device", "device_id", "mac_address",
+                "browser", "cookie", "resolution", "platform", "os", "screen_size", "timezone",
+                "client_ip", "remote_ip", "user_ip"
+            ],
+            "hinglish": [
+                "yantra", "yantra_kramank", "upkaran"
+            ],
+            "types": [],
+            "autocomplete": []
+        },
+        "not_personal": {
+            "tokens": [
+                "csrf", "csrf_token", "_token", "nonce", "xsrf", "xsrf_token", "captcha",
+                "recaptcha", "honeypot", "timestamp", "form_id", "form_name", "action",
+                "submit", "btn_submit", "button", "search", "query", "filter", "sort",
+                "page", "limit", "offset", "tracking_id", "session_id", "order_id",
+                "company_name", "product_name", "coupon_name", "coupon_code", "promo_code",
+                "domain_name", "__viewstate", "__requestverificationtoken"
+            ],
+            "hinglish": [
+                "shodh", "bhejo", "suraksha_tokan", "शोध"
+            ],
+            "types": ["submit", "reset", "button", "hidden"],
+            "autocomplete": []
+        }
+    },
+    "purposes": [
+        {
+            "id": "newsletter_signup",
+            "name": "Newsletter Signup",
+            "description": "Delivering recurring editorial publications, industry digests, and product announcements via email.",
+            "aliases": ["newsletter", "subscribe", "bulletin", "digest", "mailing_list", "newsletters"],
+            "needed_fields": ["email"],
+            "review_fields": ["first_name", "name", "consent_checkbox", "topic_preference"],
+            "typically_excess": ["phone", "mobile", "dob", "address", "gender", "aadhaar", "pan", "income", "salary", "bank_account", "caste", "religion", "health", "biometric"]
+        },
+        {
+            "id": "contact_us",
+            "name": "Contact Us",
+            "description": "Facilitating customer communication, answering incoming queries, and handling direct support requests.",
+            "aliases": ["contact", "inquiry", "support", "help", "reach_us", "get_in_touch", "contact_form", "feedback_form"],
+            "needed_fields": ["name", "email", "message"],
+            "review_fields": ["phone", "mobile", "company_name", "subject"],
+            "typically_excess": ["dob", "address", "gender", "aadhaar", "pan", "income", "bank_account", "financial", "health", "biometric", "caste", "religion"]
+        },
+        {
+            "id": "job_application",
+            "name": "Job Application",
+            "description": "Screening prospective candidates and reviewing professional qualifications for open roles.",
+            "aliases": ["job", "career", "employment", "hire", "recruitment", "resume", "apply_job", "vacancy", "internship"],
+            "needed_fields": ["name", "email", "phone", "resume", "current_location"],
+            "review_fields": ["dob", "gender", "notice_period", "current_ctc", "expected_ctc", "portfolio", "education", "experience"],
+            "typically_excess": ["aadhaar", "pan", "religion", "caste", "bank_account", "marital_status", "blood_group", "health", "biometric"]
+        },
+        {
+            "id": "online_checkout",
+            "name": "Online Checkout / E-commerce",
+            "description": "Processing commercial retail orders, billing, and coordinating physical shipment dispatch.",
+            "aliases": ["checkout", "cart", "ecommerce", "order", "buy", "purchase", "shopping", "store", "e-commerce"],
+            "needed_fields": ["name", "phone", "email", "shipping_address", "pincode", "payment_method"],
+            "review_fields": ["billing_address", "landmark", "delivery_instructions"],
+            "typically_excess": ["dob", "gender", "religion", "caste", "income", "aadhaar", "pan", "health", "biometric"]
+        },
+        {
+            "id": "account_registration",
+            "name": "Account Registration",
+            "description": "Creating user platform accounts and provisioning authentication credentials.",
+            "aliases": ["account", "signup", "register", "login", "create_account", "user_profile", "registration"],
+            "needed_fields": ["email_or_phone", "password", "name"],
+            "review_fields": ["dob", "profile_photo", "phone"],
+            "typically_excess": ["physical_address", "home_address", "aadhaar", "pan", "income", "religion", "caste", "blood_group", "bank_account"]
+        },
+        {
+            "id": "event_registration",
+            "name": "Event Registration",
+            "description": "Issuing admission tickets, coordinating logistics, and sending reminders for conferences or webinars.",
+            "aliases": ["event", "webinar", "conference", "meetup", "ticket", "workshop", "summit", "symposium"],
+            "needed_fields": ["name", "email", "phone"],
+            "review_fields": ["organization", "designation", "dietary_needs", "t_shirt_size"],
+            "typically_excess": ["dob", "home_address", "aadhaar", "pan", "income", "bank_account", "religion", "caste", "health", "biometric"]
+        },
+        {
+            "id": "appointment_booking",
+            "name": "Appointment Booking",
+            "description": "Scheduling specific consultation time slots with healthcare practitioners, advisors, or service specialists.",
+            "aliases": ["appointment", "booking", "consultation", "doctor_visit", "clinic", "slot_booking", "schedule_visit"],
+            "needed_fields": ["name", "phone", "email", "appointment_date", "appointment_time", "service_type"],
+            "review_fields": ["symptoms_brief", "previous_visit_id", "specialist_preference"],
+            "typically_excess": ["aadhaar", "pan", "income", "salary", "caste", "religion", "passport", "bank_account", "educational_qualification"]
+        },
+        {
+            "id": "loan_kyc",
+            "name": "Loan / KYC Application",
+            "description": "Conducting statutory Know Your Customer verification and creditworthiness evaluation under RBI regulations.",
+            "aliases": ["loan", "kyc", "credit", "borrow", "mortgage", "finance_application", "lending", "credit_card_apply"],
+            "needed_fields": ["name", "phone", "email", "pan", "aadhaar_or_id_proof", "address_proof", "income_details", "bank_account", "dob"],
+            "review_fields": ["employment_type", "employer_name", "marital_status", "credit_score", "cibil", "alternate_phone"],
+            "typically_excess": ["religion", "caste", "political_opinions", "biometric_scan_unless_uidai", "health_history", "sexual_orientation"]
+        },
+        {
+            "id": "insurance_quote",
+            "name": "Insurance Policy Quote",
+            "description": "Calculating actuarial premium estimates and policy eligibility under IRDAI guidelines.",
+            "aliases": ["insurance", "insurance_quote", "policy", "premium", "life_insurance", "health_insurance", "motor_insurance"],
+            "needed_fields": ["name", "dob_age", "gender", "phone", "email", "pincode", "tobacco_status", "coverage_amount"],
+            "review_fields": ["existing_medical_conditions", "nominee_name", "vehicle_registration"],
+            "typically_excess": ["aadhaar_at_quote_stage", "caste", "religion", "political_opinion", "bank_account_before_policy_issuance"]
+        },
+        {
+            "id": "school_admission",
+            "name": "School / College Admission",
+            "description": "Enrolling students, establishing legal academic guardianship records, and processing student admissions.",
+            "aliases": ["school", "college", "admission", "student_admission", "enrollment", "university", "institute", "student_registration"],
+            "needed_fields": ["student_name", "student_dob", "parent_guardian_name", "parent_phone", "parent_email", "residential_address", "previous_school"],
+            "review_fields": ["blood_group", "emergency_contact", "parent_occupation", "caste_category_for_quota"],
+            "typically_excess": ["parent_pan_or_aadhaar_mandatory_before_allotment", "credit_card", "bank_details", "religion_unless_minority_institution"]
+        },
+        {
+            "id": "feedback_survey",
+            "name": "Feedback Survey",
+            "description": "Gathering customer sentiment, service satisfaction metrics, and user experience ratings.",
+            "aliases": ["feedback", "survey", "rating", "review", "satisfaction", "poll", "questionnaire"],
+            "needed_fields": ["rating", "feedback_comment"],
+            "review_fields": ["email"],
+            "typically_excess": ["phone", "address", "dob", "gender", "income", "aadhaar", "pan", "caste", "religion", "bank_account"]
+        },
+        {
+            "id": "complaint",
+            "name": "Grievance / Complaint Filing",
+            "description": "Formally lodging dispute complaints, service incident investigations, and consumer support claims.",
+            "aliases": ["complaint", "grievance", "dispute", "consumer_forum", "support_ticket", "issue_report", "redressal"],
+            "needed_fields": ["name", "contact_channel", "grievance_description", "incident_date", "order_or_reference_number"],
+            "review_fields": ["supporting_documents", "alternate_contact"],
+            "typically_excess": ["aadhaar", "pan", "religion", "caste", "income", "biometric", "unrelated_medical_records"]
+        },
+        {
+            "id": "donation",
+            "name": "Charity / NGO Donation",
+            "description": "Processing philanthropic contributions and issuing Section 80G tax exemption certificates under Indian Income Tax Act.",
+            "aliases": ["donation", "charity", "ngo", "donate", "contribution", "relief_fund", "cause", "crowdfunding"],
+            "needed_fields": ["donor_name", "donor_email", "donor_phone", "donation_amount", "pan", "address"],
+            "review_fields": ["anonymity_preference", "citizen_status", "tax_receipt_required"],
+            "typically_excess": ["dob", "blood_group", "biometric", "caste", "religion", "bank_login_credentials"]
+        },
+        {
+            "id": "coaching",
+            "name": "Coaching Class / Demo Registration",
+            "description": "Booking introductory demo lectures, academic entrance coaching enrollments, and test series slots.",
+            "aliases": ["coaching", "tuition", "demo_class", "course_enrollment", "tutorial", "test_prep", "training", "demo_booking"],
+            "needed_fields": ["student_name", "phone", "email", "target_exam_or_course", "current_standard_or_grade"],
+            "review_fields": ["city", "school_name", "parent_phone", "demo_slot"],
+            "typically_excess": ["aadhaar", "pan", "annual_income", "religion", "caste", "bank_account", "medical_history"]
+        }
+    ],
+    "notice_templates": {
+        "en": {
+            "lang": "en",
+            "language_name": "English",
+            "draft_banner": "Draft notice. Review with a qualified legal professional before publishing.",
+            "headings": {
+                "what_we_collect": "1. What We Collect",
+                "why_we_collect": "2. Why We Collect It",
+                "how_to_withdraw": "3. How to Withdraw Consent",
+                "grievance_redressal": "4. Grievance Redressal",
+                "retention_period": "5. Data Retention",
+                "children_notice": "6. Notice Regarding Children's Data"
+            },
+            "body": {
+                "what_we_collect": "To fulfill your request, we collect only the necessary information: {collected_fields_list}.",
+                "why_we_collect": "We collect and process this data solely for the purpose of {purpose_description}.",
+                "how_to_withdraw": "You have the right under Section 6(4) of the DPDP Act to withdraw your consent at any time without negative consequences for prior lawful processing. You may withdraw consent by emailing us at [{contact_email}] or by clicking the unsubscribe link provided in our communications.",
+                "grievance_redressal": "For any concerns, questions, or to exercise your rights under the DPDP Act, contact our designated Grievance Officer at [{grievance_officer_contact}]. We are committed to responding to grievances within statutory timelines.",
+                "retention_period": "Your personal data will be retained for [{retention_period}] or until the stated purpose has been fulfilled, after which it will be safely deleted in accordance with Section 8(7) of the DPDP Act.",
+                "children_notice": "Where processing involves minors under 18 years of age, verifiable parental consent is obtained prior to data collection in accordance with Section 9(1) of the DPDP Act.",
+                "disclaimer": "Draft output for guidance only. This is not legal advice. Rule-based, local."
+            }
+        },
+        "hi": {
+            "lang": "hi",
+            "language_name": "हिन्दी (Hindi)",
+            "draft_banner": "प्रारूप सहमति सूचना। प्रकाशित करने से पहले किसी योग्य कानूनी विशेषज्ञ से समीक्षा करें।",
+            "headings": {
+                "what_we_collect": "१. हम क्या व्यक्तिगत जानकारी एकत्र करते हैं",
+                "why_we_collect": "२. हम इसे क्यों एकत्र करते हैं",
+                "how_to_withdraw": "३. सहमति वापस कैसे लें",
+                "grievance_redressal": "४. शिकायत निवारण",
+                "retention_period": "५. डेटा संरक्षण की अवधि",
+                "children_notice": "६. बच्चों के व्यक्तिगत डेटा संबंधी सूचना"
+            },
+            "body": {
+                "what_we_collect": "आपके अनुरोध को पूरा करने के लिए, हम केवल आवश्यक जानकारी एकत्र करते हैं: {collected_fields_list}।",
+                "why_we_collect": "हम यह व्यक्तिगत जानकारी केवल {purpose_description} के विशिष्ट उद्देश्य हेतु संसाधित करते हैं।",
+                "how_to_withdraw": "डिजिटल व्यक्तिगत डेटा संरक्षण अधिनियम (DPDP Act) की धारा 6(4) के तहत आपको किसी भी समय अपनी सहमति वापस लेने का पूर्ण अधिकार है। आप [{contact_email}] पर ईमेल करके अपनी सहमति वापस ले सकते हैं। सहमति वापस लेने से पूर्व में किए गए विधिपूर्ण प्रसंस्करण पर कोई प्रतिकूल प्रभाव नहीं पड़ेगा।",
+                "grievance_redressal": "किसी भी प्रश्न अथवा अपनी शिकायतों के निवारण के लिए, आप हमारे शिकायत अधिकारी से [{grievance_officer_contact}] पर संपर्क कर सकते हैं।",
+                "retention_period": "आपकी व्यक्तिगत जानकारी [{retention_period}] तक अथवा उद्देश्य पूरा होने तक ही सुरक्षित रखी जाएगी, जिसके पश्चात इसे विधिवत मिटा दिया जाएगा।",
+                "children_notice": "१८ वर्ष से कम आयु के बच्चों के डेटा के संबंध में, अधिनियम की धारा 9(1) के अनुसार माता-पिता अथवा कानूनी संरक्षक की सत्यापन योग्य सहमति अनिवार्य रूप से ली जाती है।",
+                "disclaimer": "मार्गदर्शन हेतु प्रारूप सामग्री। यह कानूनी सलाह नहीं है। स्थानीय नियम-आधारित।"
+            }
+        },
+        "mr": {
+            "lang": "mr",
+            "language_name": "मराठी (Marathi)",
+            "draft_banner": "मसुदा संमती सूचना. प्रकाशित करण्यापूर्वी पात्र कायदेविषयक तज्ज्ञाकडून तपासून घ्या.",
+            "headings": {
+                "what_we_collect": "१. आम्ही कोणती वैयक्तिक माहिती गोळा करतो",
+                "why_we_collect": "२. आम्ही ही माहिती का गोळा करतो",
+                "how_to_withdraw": "३. संमती कशी मागे घ्यावी",
+                "grievance_redressal": "४. तक्रार निवारण कक्ष",
+                "retention_period": "५. माहिती साठवणूक कालावधी",
+                "children_notice": "६. मुलांच्या वैयक्तिक माहितीसंबंधी सूचना"
+            },
+            "body": {
+                "what_we_collect": "आपली विनंती पूर्ण करण्यासाठी, आम्ही केवळ आवश्यक असलेली पुढील माहिती गोळा करतो: {collected_fields_list}.",
+                "why_we_collect": "आम्ही ही वैयक्तिक माहिती केवळ {purpose_description} या उद्देशासाठी वापरतो.",
+                "how_to_withdraw": "डिजिटल वैयक्तिक डेटा संरक्षण कायदा (DPDP Act) कलम ६(४) नुसार आपली संमती कधीही मागे घेण्याचा आपल्याला पूर्ण अधिकार आहे. यासाठी आपण [{contact_email}] वर ईमेल करू शकता. संमती मागे घेतल्याने आधीच्या कायदेशीर प्रक्रियेवर कोणताही विपरीत परिणाम होणार नाही.",
+                "grievance_redressal": "कोणतीही तक्रार किंवा शंकेचे निरसन करण्यासाठी आपण आमच्या तक्रार निवारण अधिकाऱ्यांशी [{grievance_officer_contact}] येथे संपर्क साधू शकता.",
+                "retention_period": "आपली वैयक्तिक माहिती [{retention_period}] पर्यंत किंवा निर्दिष्ट उद्देश पूर्ण होईपर्यंतच सुरक्षित ठेवली जाईल, त्यानंतर ती नष्ट केली जाईल.",
+                "children_notice": "१८ वर्षांखालील मुलांच्या माहितीसाठी कायद्याच्या कलम ९(१) नुसार पालक किंवा कायदेशीर संरक्षकांची पडताळणीयोग्य संमती घेणे बंधनकारक आहे.",
+                "disclaimer": "मार्गदर्शनासाठी मसुदा अहवाल. हा कायदेशीर सल्ला नाही. स्थानिक नियमांवर आधारित."
+            }
+        }
+    },
+    "scoring_rules": {
+        "base_score": 100,
+        "penalties": {
+            "excess_standard": 12,
+            "excess_sensitive": 20,
+            "review": 5,
+            "unverified_children_data": 15,
+            "disproportionate_gov_id": 10
+        },
+        "bonus": {
+            "purpose_clearly_stated": 10,
+            "strict_minimisation_adhered": 10
+        },
+        "bands": {
+            "strong": {"min": 85, "max": 100, "label": "Strong Compliance"},
+            "fair": {"min": 65, "max": 84, "label": "Fair Compliance"},
+            "weak": {"min": 40, "max": 64, "label": "Weak Compliance"},
+            "poor": {"min": 0, "max": 39, "label": "Poor Compliance"}
+        }
+    }
+}
+
+
+def build_and_save():
+    output_path = Path("p:/skill/shared/rules_dictionary.json")
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    with open(output_path, "w", encoding="utf-8") as f:
+        json.dump(DICTIONARY_DATA, f, indent=2, ensure_ascii=False)
+    print(f"Successfully generated {output_path} with {len(DICTIONARY_DATA['categories'])} categories and {len(DICTIONARY_DATA['purposes'])} purpose profiles.")
+
+
+if __name__ == "__main__":
+    build_and_save()

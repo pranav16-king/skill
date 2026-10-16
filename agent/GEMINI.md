@@ -48,5 +48,6 @@ All active rules in `./rules/` must be adhered to at all times:
 ## 3. Specialized Skills
 
 When working on UI or client development tasks, reference and activate the unified skills:
+- **DPDP Form Auditor Design (`skills/dpdp-form-auditor-design/`)**: Complete UI/UX design skill for the DPDP Form Auditor - rule-based, in-browser tool that audits web forms for personal-data collection, flags excess fields, and drafts a consent notice with Ink on Paper light theme, HCI laws, and judge test checklist.
 - **Professional Web App & Web UI (`skills/professional-webapp-ui/`)**: For enterprise web applications, SaaS tools, portals, dashboards, data tables, responsive layouts, CSS Grid/Flexbox, design tokens, light/dark themes, full HCI design, component patterns, and WCAG accessibility.
 - **Professional Mobile App & Mobile UI (`skills/professional-mobile-app/`)**: For production-grade mobile applications (iOS, Android, React Native, Flutter), 48/44 touch targets, thumb-zone ergonomics, native navigation, offline-first sync, haptics, safe areas, virtual keyboard handling, and complete light/dark themes.

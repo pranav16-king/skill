@@ -1,0 +1,115 @@
+@import "tailwindcss";
+
+:root {
+  /* Surfaces */
+  --paper: #F6F8FB;
+  --surface: #FFFFFF;
+  --surface-alt: #EEF2F7;
+  --line: #D8DFEA;
+  --line-strong: #B7C2D3;
+
+  /* Text */
+  --ink: #14213D;
+  --ink-2: #3D4A63;
+  --ink-3: #5A6780;
+
+  /* Primary action */
+  --primary: #2B3A9E;
+  --primary-hover: #222F82;
+  --primary-tint: #E8EBFA;
+  --focus: #1D4ED8;
+
+  /* Verdicts */
+  --needed: #0F7A4F;
+  --needed-bg: #E3F4EB;
+  --excess: #B3261E;
+  --excess-bg: #FCE9E7;
+  --review: #8A5300;
+  --review-bg: #FFF0D1;
+  --neutral: #5A6780;
+  --neutral-bg: #EAEEF4;
+
+  /* Score bands */
+  --score-strong: #0F7A4F;
+  --score-fair: #2B6CB0;
+  --score-weak: #8A5300;
+  --score-poor: #B3261E;
+
+  /* Sidebar Navy */
+  --sidebar-bg: #0B1530;
+  --sidebar-line: #1C2746;
+  --sidebar-text: #BAC7DE;
+  --sidebar-hover: #192648;
+  --sidebar-active: #2A3B66;
+
+  /* Fonts */
+  --font-ui: "IBM Plex Sans", "Inter", system-ui, -apple-system, "Segoe UI", Roboto, "Noto Sans", "Noto Sans Devanagari", "Nirmala UI", sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  background-color: var(--paper);
+  color: var(--ink);
+  font-family: var(--font-ui);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Devanagari line height adjustment for Hindi and Marathi */
+:lang(hi), :lang(mr), [lang="hi"], [lang="mr"] {
+  line-height: 1.7;
+}
+
+/* Redline wavy underline signature element */
+.redline-wavy {
+  text-decoration: underline wavy var(--excess);
+  text-underline-offset: 4px;
+}
+
+/* Excess table row redline treatment */
+.excess-row {
+  border-left: 3px solid var(--excess) !important;
+  background-color: rgba(252, 233, 231, 0.45);
+}
+
+.review-row {
+  border-left: 3px solid var(--review) !important;
+}
+
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Focus styles */
+button:focus-visible, input:focus-visible, textarea:focus-visible, a:focus-visible, [tabindex="0"]:focus-visible {
+  outline: 3px solid var(--focus) !important;
+  outline-offset: 2px !important;
+}
+
+/* Print styles */
+@media print {
+  .no-print {
+    display: none !important;
+  }
+  .print-only {
+    display: block !important;
+  }
+  body {
+    background: #ffffff !important;
+    color: #14213D !important;
+  }
+  .print-container {
+    padding: 0 !important;
+    margin: 0 !important;
+    max-width: 100% !important;
+  }
+  .page-break {
+    page-break-before: always;
+  }
+}
